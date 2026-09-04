@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+dist/
+*.egg-info/
+
+# Swift
+.build/
+.swiftpm/
+app/build/
+
+# macOS
+.DS_Store

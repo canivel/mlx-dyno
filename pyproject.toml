@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gpumon-mlx"
+version = "0.1.0"
+description = "GPU, power and unified-memory monitor for local LLM workloads on Apple Silicon"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+keywords = ["apple-silicon", "gpu", "monitor", "llm", "mlx", "llama.cpp", "ollama", "metal"]
+classifiers = [
+  "Environment :: Console",
+  "Operating System :: MacOS :: MacOS X",
+  "Programming Language :: Python :: 3",
+  "Topic :: System :: Monitoring",
+]
+dependencies = ["rich>=13.7"]
+
+[project.scripts]
+gpumon = "gpumon.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/canivel/macos-gpu-llm-monitor"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gpumon"]
