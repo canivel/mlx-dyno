@@ -13,6 +13,10 @@ struct DynoApp: App {
         if arguments.contains("--diagnose") {
             exit(Diagnose.run(arguments: Array(arguments.dropFirst())))
         }
+        if arguments.contains("--snapshot") {
+            let rest = Array(arguments.dropFirst())
+            exit(MainActor.assumeIsolated { ViewSnapshot.run(arguments: rest) })
+        }
     }
 
     var body: some Scene {

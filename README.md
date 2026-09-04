@@ -7,7 +7,9 @@ doing — tokens per second, time to first token, prefill throughput, queue wait
 and prompt-cache hits — plus a native menu bar app that shows those beside the
 machine's own GPU, power and unified-memory telemetry.
 
-📖 **[mlx-dyno docs](https://canivel.github.io/mlx-dyno/)**
+📖 **[canivel.github.io/mlx-dyno](https://canivel.github.io/mlx-dyno/)**
+
+![Dyno's window](docs/screenshots/window-run-light.png)
 
 | | What it is |
 |---|---|
@@ -49,46 +51,66 @@ token stream, where it is simply a fact rather than an inference.
 
 ## Install
 
-Download `Dyno.app`, drag it to Applications, open it. That is the whole
-install — **Python and MLX ship inside the app**, so there is nothing else to
-set up and no terminal involved.
-
-Building it yourself needs Xcode's Swift toolchain and [uv](https://docs.astral.sh/uv/)
-(which supplies the bundled Python):
+**Requirements to build:** macOS 14+ on Apple Silicon, Xcode's Swift toolchain
+(`xcode-select --install`), and [uv](https://docs.astral.sh/uv/) — which supplies
+the Python that gets bundled. *The finished app needs none of these.*
 
 ```sh
-git clone https://github.com/canivel/mlx-dyno && cd mlx-dyno/app
-./build.sh
+git clone https://github.com/canivel/mlx-dyno
+cd mlx-dyno/app
+./build.sh                          # ~12 seconds, produces a 390 MB bundle
 cp -r build/Dyno.app /Applications/
 open /Applications/Dyno.app
 ```
 
-The result is a ~390 MB self-contained bundle: the Swift app, a relocatable
-Python runtime, MLX and `mlx-dyno`. On first launch it opens its window, finds
-the models already on your disk, and you press Start.
+That is the whole install. **Python and MLX ship inside the app**, so there is
+nothing to `pip install` and no terminal needed afterwards.
+
+Dyno lives in the menu bar — no Dock icon. On first launch it opens its window;
+after that, click the menu bar icon and choose **Open Dyno**.
+
+## Run a model
+
+1. **Discover** tab → search or browse → **Download**. Size and precision are on
+   every row, and anything too big for your Mac's GPU budget is flagged.
+2. **Run** tab → pick it in the sidebar → **Start**.
+3. You now have an OpenAI-compatible endpoint on `127.0.0.1:8971`, with measured
+   throughput above the machine meters that explain it.
+
+Point any OpenAI client at it:
+
+```sh
+curl http://127.0.0.1:8971/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"<model>","messages":[{"role":"user","content":"hi"}]}'
+```
+
+Quit the app and the server stops with it, so a model is never left holding
+tens of gigabytes.
 
 <details>
-<summary>Working on the app itself</summary>
+<summary>Troubleshooting</summary>
 
-`./build.sh --slim` skips the runtime for a fast rebuild. A slim build has no
-Python inside it and falls back to a `dyno` CLI on your `PATH`.
+`Dyno.app/Contents/MacOS/Dyno --diagnose` prints which runtime the app resolved
+and which models it can see; add `--start` to actually launch the first one.
 
-`Dyno.app/Contents/MacOS/Dyno --diagnose [folder…]` prints which runtime the app
-resolved and which models it can see; add `--start` to actually launch the first
-one. It is the quickest way to find out why a model will not start.
+`--snapshot <dir>` renders the UI to PNG without launching the app.
+
+`./build.sh --slim` skips the bundled runtime for faster rebuilds; a slim build
+falls back to a `dyno` CLI on your `PATH`.
 
 </details>
 
 ### Just the command line
 
-The Python half also stands alone, for scripting or a headless box:
+The Python half stands alone, for scripting or a headless box:
 
 ```sh
-uv tool install 'mlx-dyno[serve]'    # dyno serve + dyno top
-uv tool install mlx-dyno             # dyno top only, rich is the sole dependency
+uv tool install 'mlx-dyno[serve]'    # dyno pull / serve / top
+uv tool install mlx-dyno             # dyno top only; rich is the sole dependency
 ```
 
-## Serving a model
+## Serving from the command line
 
 ```sh
 dyno serve --model mlx-community/Qwen3-8B-4bit --port 8971
@@ -100,38 +122,6 @@ MLX Dyno 0.1.0  ·  serving with live metrics
   Metrics      http://127.0.0.1:8971/metrics   (Prometheus)
   Stats        http://127.0.0.1:8971/stats     (JSON)
 ```
-
-### Getting a model
-
-The app's **Discover** tab lists MLX models from the Hugging Face hub, newest
-and most-downloaded first, with search. Each row shows its size and precision,
-and flags anything too large for this Mac's GPU budget before you spend the
-bandwidth. One click downloads it; it appears in your library when it lands.
-
-From the command line:
-
-```sh
-dyno pull mlx-community/Qwen3-8B-4bit
-```
-
-Downloads go through `huggingface_hub` into the standard cache, so models you
-already have — from LM Studio, `mlx_lm`, or anything else using that cache —
-show up without being downloaded again.
-
-### Running it
-
-Pick a model in the window and press **Start**. Models are
-found in the Hugging Face cache, the LM Studio cache and `~/models`; add your own
-folder with the button in the sidebar. The app supervises the server and stops it
-when you quit, so a model is never left holding tens of gigabytes.
-
-The window shows measured throughput — tokens/sec, time to first token, prefill
-rate, prompt-cache hit rate, active requests — above the GPU, memory, bandwidth
-and power meters that explain those numbers. The menu bar item stays as the
-glanceable version.
-
-Either way the app finds it, because it discovers servers by looking up the TCP
-ports each LLM process is listening on — no default-port assumptions.
 
 ### Not a fork
 

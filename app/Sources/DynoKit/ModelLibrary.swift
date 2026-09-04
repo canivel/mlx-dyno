@@ -10,6 +10,18 @@ public struct LocalModel: Sendable, Identifiable, Equatable, Hashable {
     public var source: String
 
     public var sizeGB: Double { Double(sizeBytes) / GB }
+
+    /// The model name without its owner, for narrow lists: a sidebar truncating
+    /// "mlx-community/Qwen1.5-0.5B-Chat" in the middle is unreadable.
+    public var shortName: String {
+        name.contains("/") ? String(name.split(separator: "/").last ?? "") : name
+    }
+
+    /// The hub owner, when the name carries one.
+    public var owner: String? {
+        guard name.contains("/") else { return nil }
+        return String(name.split(separator: "/").first ?? "")
+    }
 }
 
 /// Finds MLX-loadable models on disk.

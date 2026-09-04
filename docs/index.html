@@ -4,216 +4,229 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MLX Dyno — real metrics for local LLMs on Apple Silicon</title>
-<meta name="description" content="An MLX inference server for Apple Silicon that reports its own tokens/sec, time to first token and prompt-cache hits, plus a native menu bar app for GPU, power and unified-memory telemetry. No sudo.">
+<meta name="description" content="Run local LLMs on your Mac and see exactly how fast they are. An MLX server that reports its own tokens/sec, time to first token and prompt-cache hits, in a native macOS app.">
 <meta property="og:title" content="MLX Dyno">
 <meta property="og:description" content="Put your model on the dyno. Real tokens/sec for local LLMs on Apple Silicon.">
 <meta property="og:type" content="website">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%2315171a'/><g fill='%2334d399'><rect x='14' y='38' width='6' height='12' rx='3'/><rect x='24' y='30' width='6' height='20' rx='3'/><rect x='34' y='22' width='6' height='28' rx='3' fill='%2360c9a8'/><rect x='44' y='14' width='6' height='36' rx='3' fill='%23c2953f'/></g></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%2315171a'/><g><rect x='14' y='38' width='6' height='12' rx='3' fill='%2334d399'/><rect x='24' y='30' width='6' height='20' rx='3' fill='%2334d399'/><rect x='34' y='22' width='6' height='28' rx='3' fill='%2360c9a8'/><rect x='44' y='14' width='6' height='36' rx='3' fill='%23c2953f'/></g></svg>">
 <style>
   :root{
-    --bg:#fbfbfa; --panel:#ffffff; --ink:#16181d; --muted:#5d6470; --faint:#8b94a3;
-    --line:#e4e6ea; --accent:#0f7a5a; --accent-soft:#e6f4ef; --warn:#b4601a;
-    --term-bg:#14161a; --term-ink:#d6dbe3; --term-dim:#78818f;
-    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    --bg:#fafaf9; --panel:#fff; --raised:#fff; --ink:#14161a; --muted:#5a616d;
+    --faint:#8c95a3; --line:#e5e7eb; --hair:#eef0f3;
+    --accent:#0d7a58; --accent-ink:#fff; --accent-soft:#e7f4ef;
+    --term-bg:#14161a; --term-ink:#d8dde5; --term-dim:#767f8d;
+    --hero-a:#f4f7f6; --hero-b:#fafaf9;
+    --shadow:0 1px 2px rgba(16,20,26,.06),0 12px 32px -8px rgba(16,20,26,.13);
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;
     --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;
   }
-  @media (prefers-color-scheme:dark){
-    :root:not([data-theme="light"]){
-      --bg:#0e1013; --panel:#16191e; --ink:#e8eaee; --muted:#9aa3b1; --faint:#6d7684;
-      --line:#252a32; --accent:#34d399; --accent-soft:#12261f; --warn:#e0a352;
-      --term-bg:#0a0c0f; --term-ink:#d6dbe3; --term-dim:#6d7684;
-    }
-  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0c0e11; --panel:#14171c; --raised:#191d23; --ink:#e9ebef; --muted:#9ba4b2;
+    --faint:#6b7480; --line:#232830; --hair:#1c2027;
+    --accent:#34d399; --accent-ink:#07120e; --accent-soft:#11241d;
+    --term-bg:#08090c; --term-ink:#d8dde5; --term-dim:#6b7480;
+    --hero-a:#101419; --hero-b:#0c0e11;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 16px 40px -10px rgba(0,0,0,.6);
+  }}
   :root[data-theme="dark"]{
-    --bg:#0e1013; --panel:#16191e; --ink:#e8eaee; --muted:#9aa3b1; --faint:#6d7684;
-    --line:#252a32; --accent:#34d399; --accent-soft:#12261f; --warn:#e0a352;
-    --term-bg:#0a0c0f; --term-ink:#d6dbe3; --term-dim:#6d7684;
+    --bg:#0c0e11; --panel:#14171c; --raised:#191d23; --ink:#e9ebef; --muted:#9ba4b2;
+    --faint:#6b7480; --line:#232830; --hair:#1c2027;
+    --accent:#34d399; --accent-ink:#07120e; --accent-soft:#11241d;
+    --term-bg:#08090c; --term-ink:#d8dde5; --term-dim:#6b7480;
+    --hero-a:#101419; --hero-b:#0c0e11;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 16px 40px -10px rgba(0,0,0,.6);
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
-       line-height:1.62;-webkit-font-smoothing:antialiased}
-  .wrap{max-width:860px;margin:0 auto;padding:0 24px}
-  a{color:var(--accent);text-decoration:none}
-  a:hover{text-decoration:underline}
+       line-height:1.6;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
   code,pre{font-family:var(--mono)}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 24px}
+  .narrow{max-width:720px}
 
-  header{padding:76px 0 44px;border-bottom:1px solid var(--line)}
-  .logo{display:flex;align-items:center;gap:13px;margin-bottom:22px}
-  .logo svg{width:42px;height:42px;flex:none}
-  h1{font-size:34px;margin:0;letter-spacing:-.5px;font-weight:650}
-  .tag{font-size:19px;color:var(--muted);margin:0 0 6px;max-width:62ch}
-  .lede{font-size:15px;color:var(--faint);margin:14px 0 0;max-width:66ch}
-  .badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:24px}
-  .badge{font-family:var(--mono);font-size:11.5px;color:var(--muted);
-         border:1px solid var(--line);border-radius:100px;padding:4px 11px;background:var(--panel)}
+  /* nav */
+  nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(14px);
+      background:color-mix(in srgb,var(--bg) 86%,transparent);border-bottom:1px solid var(--hair)}
+  nav .wrap{display:flex;align-items:center;gap:10px;height:56px}
+  nav .name{font-weight:640;font-size:15px;letter-spacing:-.2px}
+  nav .links{margin-left:auto;display:flex;gap:20px;font-size:13.5px;color:var(--muted)}
+  nav .links a:hover{color:var(--ink)}
+  .mark{width:26px;height:26px;border-radius:7px;flex:none}
 
-  section{padding:52px 0;border-bottom:1px solid var(--line)}
-  section:last-of-type{border-bottom:0}
-  h2{font-size:13px;text-transform:uppercase;letter-spacing:.9px;color:var(--faint);
-     margin:0 0 20px;font-weight:640}
-  h3{font-size:17px;margin:30px 0 8px;font-weight:620}
-  p{margin:0 0 15px;max-width:68ch}
-  .muted{color:var(--muted)}
+  /* hero */
+  .hero{background:linear-gradient(180deg,var(--hero-a),var(--hero-b));
+        border-bottom:1px solid var(--hair);padding:74px 0 0;text-align:center}
+  .hero h1{font-size:52px;line-height:1.08;letter-spacing:-1.6px;margin:0 0 16px;font-weight:680}
+  .hero .sub{font-size:19px;color:var(--muted);max-width:60ch;margin:0 auto 10px}
+  .hero .sub b{color:var(--ink);font-weight:600}
+  .cta{display:flex;gap:11px;justify-content:center;margin:30px 0 12px;flex-wrap:wrap}
+  .btn{display:inline-flex;align-items:center;gap:7px;padding:11px 21px;border-radius:9px;
+       font-size:14.5px;font-weight:560;border:1px solid transparent;transition:.15s}
+  .btn.primary{background:var(--accent);color:var(--accent-ink)}
+  .btn.primary:hover{filter:brightness(1.08)}
+  .btn.ghost{border-color:var(--line);color:var(--ink);background:var(--panel)}
+  .btn.ghost:hover{border-color:var(--muted)}
+  .meta{font-size:12.5px;color:var(--faint);margin-bottom:52px}
+
+  /* screenshots */
+  .shot{max-width:940px;margin:0 auto}
+  .shot img{width:100%;display:block;border:1px solid var(--line);
+            border-radius:12px 12px 0 0;box-shadow:var(--shadow)}
+  .figure img{width:100%;display:block;border:1px solid var(--line);
+              border-radius:11px;box-shadow:var(--shadow)}
+  .figure{margin:30px 0 0}
+  .cap{font-size:12.5px;color:var(--faint);margin-top:11px;text-align:center}
+  .only-dark{display:none}
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]) .only-dark{display:block}
+    :root:not([data-theme="light"]) .only-light{display:none}
+  }
+
+  /* sections */
+  section{padding:66px 0;border-bottom:1px solid var(--hair)}
+  h2{font-size:29px;letter-spacing:-.7px;margin:0 0 12px;font-weight:660}
+  .kicker{font-size:11px;letter-spacing:1px;color:var(--accent);font-weight:660;margin-bottom:9px}
+  p{margin:0 0 15px;color:var(--muted);font-size:15.5px}
+  p b,p strong{color:var(--ink);font-weight:600}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:34px}
+  @media(max-width:820px){.grid{grid-template-columns:1fr}.body{grid-template-columns:1fr}
+    .side{display:none}.hero h1{font-size:36px}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px}
+  .card .ic{width:30px;height:30px;border-radius:8px;background:var(--accent-soft);
+            display:flex;align-items:center;justify-content:center;margin-bottom:11px;font-size:15px}
+  .card h3{font-size:15px;margin:0 0 6px;font-weight:620;color:var(--ink)}
+  .card p{font-size:13px;margin:0}
 
   pre.term{background:var(--term-bg);color:var(--term-ink);border-radius:11px;padding:18px 20px;
-       overflow-x:auto;font-size:12.5px;line-height:1.62;margin:0 0 18px;
-       border:1px solid rgba(255,255,255,.07)}
-  pre.term .c{color:var(--term-dim)}
-  pre.term .g{color:#34d399}
-  pre.term .y{color:#e0b252}
-  pre.term .b{color:#6aa9e9}
-  pre.term .w{color:#fff;font-weight:600}
+       overflow-x:auto;font-size:12.5px;line-height:1.65;border:1px solid rgba(255,255,255,.06)}
+  pre.term .c{color:var(--term-dim)} pre.term .g{color:#34d399}
+  pre.term .b{color:#6aa9e9} pre.term .w{color:#fff;font-weight:600}
   .prompt{color:#34d399}
 
-  .cols{display:grid;grid-template-columns:1fr 1fr;gap:26px}
-  @media(max-width:700px){.cols{grid-template-columns:1fr}}
+  .quote{background:var(--accent-soft);border-radius:12px;padding:22px 24px;margin:26px 0}
+  .quote p{color:var(--ink);margin:0;font-size:15px}
+  .num{font-family:var(--mono);font-weight:660;color:var(--accent)}
 
-  table{width:100%;border-collapse:collapse;font-size:13.5px;margin:6px 0 4px;display:block;overflow-x:auto}
-  th,td{text-align:left;padding:9px 12px 9px 0;border-bottom:1px solid var(--line);vertical-align:top}
-  th{color:var(--faint);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.6px}
-  td code{font-size:12.5px;color:var(--ink);white-space:nowrap}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;display:block;overflow-x:auto}
+  td,th{text-align:left;padding:9px 14px 9px 0;border-bottom:1px solid var(--hair);vertical-align:top}
+  th{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--faint)}
+  td code{color:var(--ink);font-size:12.5px;white-space:nowrap}
+  td:last-child{color:var(--muted)}
 
-  .callout{background:var(--accent-soft);border-left:2px solid var(--accent);
-           border-radius:0 8px 8px 0;padding:16px 18px;margin:22px 0;font-size:14.5px}
-  .callout strong{color:var(--ink)}
-  .num{font-family:var(--mono);font-weight:650;color:var(--accent)}
-
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:18px 20px}
-  .card h4{margin:0 0 6px;font-size:14.5px;font-weight:620}
-  .card p{font-size:13.5px;color:var(--muted);margin:0}
-
-  footer{padding:38px 0 64px;color:var(--faint);font-size:13px}
-  footer a{color:var(--muted)}
+  footer{padding:40px 0 70px;font-size:13px;color:var(--faint)}
+  footer a{color:var(--muted);text-decoration:underline;text-underline-offset:3px}
 </style>
 </head>
 <body>
 
-<header>
+<nav>
   <div class="wrap">
-    <div class="logo">
-      <svg viewBox="0 0 64 64" aria-hidden="true">
-        <rect width="64" height="64" rx="14" fill="#15171a"/>
-        <g><rect x="14" y="38" width="6" height="12" rx="3" fill="#34d399"/>
-        <rect x="24" y="30" width="6" height="20" rx="3" fill="#34d399"/>
-        <rect x="34" y="22" width="6" height="28" rx="3" fill="#60c9a8"/>
-        <rect x="44" y="14" width="6" height="36" rx="3" fill="#c2953f"/></g>
-      </svg>
-      <h1>MLX&nbsp;Dyno</h1>
+    <svg class="mark" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#15171a"/>
+      <rect x="14" y="38" width="6" height="12" rx="3" fill="#34d399"/>
+      <rect x="24" y="30" width="6" height="20" rx="3" fill="#34d399"/>
+      <rect x="34" y="22" width="6" height="28" rx="3" fill="#60c9a8"/>
+      <rect x="44" y="14" width="6" height="36" rx="3" fill="#c2953f"/></svg>
+    <span class="name">MLX Dyno</span>
+    <span class="links">
+      <a href="#how">How it works</a>
+      <a href="#metrics">Metrics</a>
+      <a href="#install">Install</a>
+      <a href="https://github.com/canivel/mlx-dyno">GitHub</a>
+    </span>
+  </div>
+</nav>
+
+<div class="hero">
+  <div class="wrap">
+    <h1>Put your model<br>on the dyno.</h1>
+    <p class="sub">Run local LLMs on your Mac and see <b>exactly how fast they are</b> —
+      tokens per second measured inside the generation loop, next to the GPU, memory and
+      bandwidth numbers that explain it.</p>
+    <div class="cta">
+      <a class="btn primary" href="#install">Get MLX Dyno</a>
+      <a class="btn ghost" href="https://github.com/canivel/mlx-dyno">View source</a>
     </div>
-    <p class="tag">Put your model on the dyno.</p>
-    <p class="lede">An MLX inference server for Apple Silicon that reports what it is
-      actually doing — tokens per second, time to first token, prefill throughput and
-      prompt-cache hits — plus a native menu bar app that shows those beside the
-      machine's own GPU, power and memory telemetry.</p>
-    <div class="badges">
-      <span class="badge">Apple Silicon</span>
-      <span class="badge">no sudo</span>
-      <span class="badge">OpenAI-compatible</span>
-      <span class="badge">Prometheus /metrics</span>
-      <span class="badge">MIT</span>
+    <p class="meta">macOS on Apple Silicon · one app, nothing else to install · MIT</p>
+
+    <div class="shot">
+      <img class="only-light" src="screenshots/window-run-light.png"
+           alt="Dyno's window: model list on the left, throughput and machine meters on the right">
+      <img class="only-dark" src="screenshots/window-run-dark.png"
+           alt="Dyno's window: model list on the left, throughput and machine meters on the right">
     </div>
   </div>
-</header>
+</div>
 
-<section>
+<section id="how">
   <div class="wrap">
-    <h2>Install</h2>
-<pre class="term"><span class="c"># download Dyno.app, drag it to Applications, open it.</span>
-<span class="c"># Python and MLX are inside the app. Nothing else to install.</span>
-
-<span class="c"># or build it yourself:</span>
-<span class="prompt">$</span> git clone https://github.com/canivel/mlx-dyno &amp;&amp; cd mlx-dyno/app
-<span class="prompt">$</span> ./build.sh
-<span class="prompt">$</span> cp -r build/Dyno.app /Applications/</pre>
-    <p class="muted" style="font-size:14px">A ~390&nbsp;MB self-contained bundle: the Swift
-      app, a relocatable Python runtime, MLX and the server. On first launch it opens its
-      window, finds the models already on your disk, and you press Start. The command line
-      also stands alone — <code>uv tool install 'mlx-dyno[serve]'</code>.</p>
+    <div class="kicker">HOW IT WORKS</div>
+    <h2>Three clicks from nothing to a running model</h2>
+    <div class="grid">
+      <div class="card"><div class="ic">🔍</div><h3>Find</h3>
+        <p>Browse MLX models from the Hugging Face hub inside the app — newest first, or by
+        downloads. Size and precision are on every row, and anything too large for your Mac's
+        GPU budget is flagged before you spend the bandwidth.</p></div>
+      <div class="card"><div class="ic">⬇</div><h3>Download</h3>
+        <p>One click. Files land in the standard Hugging Face cache, so models you already
+        have from LM Studio or <code>mlx_lm</code> show up without downloading again.</p></div>
+      <div class="card"><div class="ic">▶</div><h3>Run</h3>
+        <p>Press Start. You get an OpenAI-compatible endpoint on localhost and a live readout
+        of what it is actually doing. Quit the app and the server stops with it.</p></div>
+    </div>
+    <div class="figure">
+      <img class="only-light" src="screenshots/window-discover-light.png"
+           alt="The Discover tab listing MLX models with size, precision and download buttons">
+      <img class="only-dark" src="screenshots/window-discover-dark.png"
+           alt="The Discover tab listing MLX models with size, precision and download buttons">
+      <p class="cap">Discover — every row shows size and precision, and flags what will not
+        fit before you spend the bandwidth.</p>
+    </div>
   </div>
 </section>
 
 <section>
-  <div class="wrap">
-    <h2>Find a model</h2>
-    <p>The app's <strong>Discover</strong> tab lists MLX models from the Hugging Face hub
-      with search, showing each one's size and precision and flagging anything too large for
-      your Mac's GPU budget <em>before</em> you spend the bandwidth. One click downloads it
-      and it appears in your library.</p>
-<pre class="term"><span class="c"># or from the command line</span>
-<span class="prompt">$</span> dyno pull mlx-community/Qwen3-8B-4bit
-Downloading mlx-community/Qwen3-8B-4bit (4.3 GB)…
-   68.2%    2.93 / 4.31 GB</pre>
-    <p class="muted" style="font-size:14px">Downloads use the standard Hugging Face cache,
-      so models you already have — from LM Studio, <code>mlx_lm</code>, or anything else
-      using that cache — show up without downloading again.</p>
-  </div>
-</section>
-
-<section>
-  <div class="wrap">
-    <h2>Serve a model</h2>
-<pre class="term"><span class="prompt">$</span> dyno serve --model mlx-community/Qwen3-8B-4bit --port 8971
-
-<span class="w">MLX Dyno 0.1.0</span>  ·  serving with live metrics
-  OpenAI API   <span class="b">http://127.0.0.1:8971/v1</span>
-  Metrics      <span class="b">http://127.0.0.1:8971/metrics</span>   <span class="c">(Prometheus)</span>
-  Stats        <span class="b">http://127.0.0.1:8971/stats</span>     <span class="c">(JSON)</span>
-
-<span class="prompt">$</span> curl -s localhost:8971/metrics | grep decode
-<span class="g">mlx:decode_tokens_per_second</span> <span class="w">31.204</span>
-<span class="g">mlx:last_time_to_first_token_seconds</span> <span class="w">1.006</span>
-<span class="g">mlx:tokens_generated_total</span> <span class="w">120</span></pre>
-    <p>Every <code>mlx_lm.server</code> flag still works, because
-      <strong>this is not a fork</strong>. It imports <code>mlx_lm.server</code>, swaps two
-      classes for instrumented subclasses, and hands control back — so batching, prompt
-      caching and speculative decoding all come along unchanged. The additions are timing
-      hooks inside the token stream and two endpoints.</p>
-  </div>
-</section>
-
-<section>
-  <div class="wrap">
-    <h2>Why this exists</h2>
-    <p>Running a large model locally on a Mac is mostly a memory problem, and the tools do
-      not show you memory the way it matters.</p>
-    <p>There is no <code>nvidia-smi</code> on macOS. Activity Monitor reports a GPU
-      percentage that cannot tell a GPU pinned at a low clock apart from one doing real
-      work, and reports memory used without reference to the only ceiling that counts: how
-      much unified memory Metal will actually let the GPU hold. On a 128&nbsp;GB machine that
-      is <span class="num">107.5 GB</span>, not 128. Cross it and allocations quietly spill
-      back to CPU memory, throughput falls off a cliff, and nothing tells you why.</p>
-    <p>Then there is throughput itself. Token generation is memory-bound — every token
-      re-reads the entire weight set — so tokens per second is set by <em>bandwidth</em>,
-      not by GPU utilisation. A GPU reading 99% busy while pulling 250&nbsp;GB/s and one
-      pulling 400&nbsp;GB/s are different machines having very different days.</p>
-    <p>llama.cpp and vLLM both publish Prometheus metrics, so anyone can read their real
+  <div class="wrap narrow">
+    <div class="kicker">WHY IT EXISTS</div>
+    <h2>Measured, not estimated</h2>
+    <p>Running a large model locally on a Mac is mostly a memory problem, and the tools do not
+      show you memory the way it matters. There is no <code>nvidia-smi</code> here. Activity
+      Monitor cannot tell a GPU pinned at a low clock apart from one doing real work, and
+      reports memory used without reference to the only ceiling that counts — how much unified
+      memory Metal will let the GPU hold. On a 128&nbsp;GB machine that is
+      <span class="num">107.5 GB</span>, not 128.</p>
+    <p>Throughput has the same problem. Token generation is memory-bound: every token re-reads
+      the whole weight set, so tokens per second is set by <b>bandwidth</b>, not by GPU
+      utilisation. llama.cpp and vLLM publish Prometheus metrics so anyone can read their real
       throughput. On Apple Silicon the fast path is MLX — and <code>mlx_lm</code> computes
-      throughput internally on every single request, then discards it. Anything watching
-      from outside has to infer it.</p>
+      throughput internally on every request, then throws it away.</p>
 
-    <div class="callout">
-      <p style="margin:0"><strong>You can infer it, up to a point.</strong> Read bandwidth
-      divided by weight-set size gives the decode rate. On a 27B 8-bit model on an M5 Max
-      that predicted <span class="num">8.97</span> tok/s against <span class="num">8.70</span>
-      measured — within 3%. But the moment a second request shared the GPU, the same estimate
-      read <span class="num">~10.3</span> against <span class="num">8.73</span> actual.</p>
-      <p style="margin:10px 0 0">Excellent in isolation, 18% high under load. Fine for a
-      dashboard glance; not something to benchmark against, tune a batch size with, or pick
-      a quantisation level on.</p>
+    <div class="quote">
+      <p><b>You can infer it, up to a point.</b> Read bandwidth divided by weight-set size gives
+      the decode rate. On a 27B 8-bit model on an M5 Max that predicted <span class="num">8.97</span>
+      tok/s against <span class="num">8.70</span> measured — within 3%. But once a second request
+      shared the GPU, the same estimate read <span class="num">~10.3</span> against
+      <span class="num">8.73</span> actual.</p>
+      <p style="margin-top:11px">Excellent alone, 18% high under load. Fine for a glance; not
+      something to benchmark against or pick a quantisation level on. So Dyno exposes the number
+      instead of guessing it.</p>
     </div>
 
-    <p>So expose the number instead of guessing it. The measurement happens inside the token
-      stream, where it is simply a fact rather than an inference.</p>
+    <p>The measurement happens inside the token stream, where it is a fact rather than an
+      inference. And <b>it is not a fork</b> — Dyno imports <code>mlx_lm.server</code>, swaps two
+      classes for instrumented subclasses, and hands control back, so batching, prompt caching
+      and speculative decoding all keep working.</p>
   </div>
 </section>
 
-<section>
-  <div class="wrap">
-    <h2>What it measures</h2>
+<section id="metrics">
+  <div class="wrap narrow">
+    <div class="kicker">WHAT YOU GET</div>
+    <h2>Every number the server knows</h2>
+    <p>Over Prometheus <code>/metrics</code> and a richer JSON <code>/stats</code>, so your own
+      dashboards can read it too.</p>
     <table>
       <tr><th>Metric</th><th>Meaning</th></tr>
-      <tr><td><code>mlx:decode_tokens_per_second</code></td><td>In-flight throughput; falls back to recent history when idle</td></tr>
-      <tr><td><code>mlx:live_decode_tokens_per_second</code></td><td>Requests generating right now, summed</td></tr>
+      <tr><td><code>mlx:decode_tokens_per_second</code></td><td>In-flight throughput, falling back to recent history when idle</td></tr>
       <tr><td><code>mlx:last_time_to_first_token_seconds</code></td><td>Prompt processing plus queue wait</td></tr>
       <tr><td><code>mlx:last_prompt_tokens_per_second</code></td><td>Prefill throughput</td></tr>
       <tr><td><code>mlx:cached_prompt_tokens_total</code></td><td>Prompt tokens the cache served</td></tr>
@@ -221,80 +234,51 @@ Downloading mlx-community/Qwen3-8B-4bit (4.3 GB)…
       <tr><td><code>mlx:requests_active</code></td><td>Generating or queued right now</td></tr>
       <tr><td><code>mlx:memory_active_bytes</code></td><td>MLX allocator, plus peak and cache</td></tr>
     </table>
-    <p class="muted" style="font-size:14px;margin-top:16px">The decode rate deliberately
-      excludes prompt processing and queue time: tokens produced divided by the time spent
-      producing them. Verified against wall-clock timing — a request taking 5.46&nbsp;s
-      end-to-end with 0.36&nbsp;s to first token reported 31.2&nbsp;tok/s, exactly
-      <code>159 ÷ 5.10</code>.</p>
-    <p class="muted" style="font-size:14px"><code>/stats</code> returns the same figures as
-      JSON, plus the last ten requests individually.</p>
-  </div>
-</section>
-
-<section>
-  <div class="wrap">
-    <h2>The machine underneath</h2>
-<pre class="term"><span class="prompt">$</span> dyno top
-
-<span class="w">Apple M5 Max</span> · 40-core GPU · 128 GB unified · 18-core CPU
-
-GPU busy         <span class="w">95.9%</span>  @ 526 MHz
-GPU power        <span class="w">7.2 W</span>
-GPU memory       <span class="w">33.9 GB</span> of 107.5 GB (31.5%), headroom <span class="g">73.6 GB</span>
-System memory    60.3 GB of 128.0 GB  (wired 36.9 GB, swap 0 B)
-DRAM power       10.3 W        SoC power  19.5 W
-System power     50.5 W of 94 W adapter
-Memory bandwidth <span class="w">281 GB/s</span> (read 264, write 17)
-
-Processes:
-   5857  <span class="w">mlx_lm.server</span>   MLX    27.2 GB    36%  GPU</pre>
-
-    <div class="cols" style="margin-top:26px">
-      <div class="card">
-        <h4>No sudo, ever</h4>
-        <p>Most Apple Silicon monitors shell out to <code>powermetrics</code>, which needs
-        root. This reads the same counters one level down through IOReport, IOKit and Metal.</p>
-      </div>
-      <div class="card">
-        <h4>The real memory ceiling</h4>
-        <p>GPU memory is shown against Metal's <code>recommendedMaxWorkingSetSize</code> —
-        the actual limit for weights plus KV cache, not total RAM.</p>
-      </div>
-      <div class="card">
-        <h4>Bandwidth, not just utilisation</h4>
-        <p>DRAM read and write throughput, because that is what predicts tokens per second
-        on a unified-memory machine.</p>
-      </div>
-      <div class="card">
-        <h4>One-click models</h4>
-        <p>Browse and download MLX models from the hub inside the app, with size and
-        precision shown up front.</p>
-      </div>
-      <div class="card">
-        <h4>Other runtimes too</h4>
-        <p>llama.cpp, vLLM, Ollama and LM Studio are detected by the ports they listen on,
-        with measured throughput wherever they report it.</p>
-      </div>
+    <p style="margin-top:22px;font-size:14px">The decode rate excludes prompt processing and
+      queue time: tokens produced divided by the time spent producing them. Verified against
+      wall-clock timing — a request taking 5.46&nbsp;s end-to-end with 0.36&nbsp;s to first token
+      reported 31.2&nbsp;tok/s, exactly <code>159 ÷ 5.10</code>.</p>
+    <p style="font-size:14px">Machine telemetry comes from <code>IOReport</code>, IOKit and Metal
+      directly — <b>never <code>sudo</code></b>, unlike the <code>powermetrics</code> wrappers.</p>
+    <div class="figure" style="max-width:360px;margin-left:auto;margin-right:auto">
+      <img class="only-light" src="screenshots/menu-panel-light.png"
+           alt="The menu bar panel showing GPU, memory, power, bandwidth and processes">
+      <img class="only-dark" src="screenshots/menu-panel-dark.png"
+           alt="The menu bar panel showing GPU, memory, power, bandwidth and processes">
+      <p class="cap">The menu bar panel, for glancing without switching windows.</p>
     </div>
   </div>
 </section>
 
-<section>
-  <div class="wrap">
-    <h2>The app</h2>
-    <p>A native Swift app with a window for working — pick a model, press Start, watch
-      measured throughput above the GPU, memory, bandwidth and power meters that explain it
-      — and a menu bar item for glancing. It starts and supervises model servers and stops
-      them when you quit, so a model is never left holding tens of gigabytes.</p>
-    <p class="muted" style="font-size:14px">Idle cost: about 3% of one core and a flat
-      80&nbsp;MB.</p>
+<section id="install">
+  <div class="wrap narrow">
+    <div class="kicker">INSTALL</div>
+    <h2>One app. Nothing else.</h2>
+    <p>Python and MLX ship <em>inside</em> the app bundle, the way Ollama carries its own
+      runtime. There is nothing to <code>pip install</code> and no terminal involved.</p>
+<pre class="term"><span class="prompt">$</span> git clone https://github.com/canivel/mlx-dyno
+<span class="prompt">$</span> cd mlx-dyno/app &amp;&amp; ./build.sh
+<span class="prompt">$</span> cp -r build/Dyno.app /Applications/
+
+<span class="c"># ~390 MB self-contained bundle, builds in about 12 seconds</span></pre>
+    <p style="margin-top:20px">Building needs Xcode's Swift toolchain and
+      <a href="https://docs.astral.sh/uv/" style="color:var(--accent)">uv</a>, which supplies the
+      bundled Python. The finished app needs neither.</p>
+    <p>The command line also stands alone, for scripting or a headless box:</p>
+<pre class="term"><span class="prompt">$</span> uv tool install <span class="w">'mlx-dyno[serve]'</span>
+<span class="prompt">$</span> dyno pull mlx-community/Qwen3-8B-4bit
+<span class="prompt">$</span> dyno serve --model mlx-community/Qwen3-8B-4bit --port 8971
+<span class="prompt">$</span> dyno top   <span class="c"># GPU, power and memory dashboard</span></pre>
   </div>
 </section>
 
 <footer>
   <div class="wrap">
     <a href="https://github.com/canivel/mlx-dyno">github.com/canivel/mlx-dyno</a>
-    &nbsp;·&nbsp; MIT &nbsp;·&nbsp; requires macOS on Apple Silicon
+    &nbsp;·&nbsp; MIT &nbsp;·&nbsp; requires macOS 14+ on Apple Silicon
+    <div style="margin-top:8px;color:var(--faint)">
+      Screenshots are rendered from the app itself on an Apple M5 Max.
+    </div>
   </div>
 </footer>
 

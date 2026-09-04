@@ -46,7 +46,9 @@ struct Sparkline: View {
         GeometryReader { geometry in
             let size = geometry.size
             let points = Array(values.suffix(120))
-            let top = max(ceiling ?? points.max() ?? 1, 0.0001)
+            // With no fixed ceiling, scaling to the maximum makes a flat series
+            // fill the whole box and read as solid colour. Leave headroom.
+            let top = max(ceiling ?? ((points.max() ?? 1) * 1.3), 0.0001)
 
             if points.count > 1 {
                 let step = size.width / CGFloat(points.count - 1)

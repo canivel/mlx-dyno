@@ -28,6 +28,9 @@ final class MonitorModel {
     private(set) var isSearching = false
     private(set) var downloads: [String: DownloadManager.Progress] = [:]
     var searchText: String = ""
+    var catalogSort: ModelCatalog.Sort = .recent {
+        didSet { runSearch(query: searchText) }
+    }
 
     /// Repository ids already on disk, so the catalog can say so.
     var downloadedRepositories: Set<String> {
@@ -127,9 +130,7 @@ final class MonitorModel {
         catalogError = nil
         Task { @MainActor in
             do {
-                let results = query.trimmingCharacters(in: .whitespaces).isEmpty
-                    ? try await ModelCatalog.featured()
-                    : try await ModelCatalog.search(query)
+                let results = try await ModelCatalog.search(query, sort: self.catalogSort)
                 self.catalog = results
                 self.isSearching = false
                 await self.fillSizes(for: results)
@@ -161,9 +162,16 @@ final class MonitorModel {
                 addNext()
             }
         }
-        catalog = catalog.map { model in
+        // Sorting by date surfaces a lot of half-finished uploads: a repo
+        // claiming to be a 36B model with 20 MB of files has no weights in it
+        // yet. Once a size is known, drop anything too small to be a model.
+        let minimumUsableBytes: Int64 = 100 * 1024 * 1024
+        catalog = catalog.compactMap { model in
             var model = model
-            if let size = sizes[model.id] { model.sizeBytes = size }
+            if let size = sizes[model.id] {
+                guard size >= minimumUsableBytes else { return nil }
+                model.sizeBytes = size
+            }
             return model
         }
     }

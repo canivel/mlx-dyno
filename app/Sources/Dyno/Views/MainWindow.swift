@@ -8,7 +8,12 @@ import SwiftUI
 /// metrics that explain the number.
 struct MainWindow: View {
     var model: MonitorModel
-    @State private var tab = Tab.run
+    @State private var tab: Tab
+
+    init(model: MonitorModel, initialTab: Tab = .run) {
+        self.model = model
+        _tab = State(initialValue: initialTab)
+    }
 
     enum Tab: String, CaseIterable, Identifiable {
         case run = "Run"
@@ -148,11 +153,13 @@ private struct ModelRow: View {
                 .fill(isRunning ? Color.green : Color.clear)
                 .frame(width: 6, height: 6)
             VStack(alignment: .leading, spacing: 1) {
-                Text(candidate.name)
+                Text(candidate.shortName)
                     .font(.system(size: 12, weight: isRunning ? .semibold : .regular))
-                    .lineLimit(1).truncationMode(.middle)
-                Text("\(Format.bytes(candidate.sizeBytes))  ·  \(candidate.source)")
+                    .lineLimit(1).truncationMode(.tail)
+                Text([candidate.owner, Format.bytes(candidate.sizeBytes)]
+                        .compactMap { $0 }.joined(separator: "  ·  "))
                     .font(.system(size: 10)).foregroundStyle(.tertiary)
+                    .lineLimit(1).truncationMode(.tail)
             }
             Spacer(minLength: 0)
         }
@@ -185,6 +192,8 @@ private struct RunPanel: View {
                 controls
                 if let served, served.stats != nil || served.tokensPerSecond != nil {
                     throughput(served)
+                } else {
+                    idleHint
                 }
                 hardware
             }
@@ -225,9 +234,9 @@ private struct RunPanel: View {
 
     private var headline: String {
         switch model.serverState {
-        case let .running(name, _): return name
-        case let .launching(name): return name
-        default: return model.selectedModel?.name ?? "No model selected"
+        case let .running(name, _), let .launching(name):
+            return name.split(separator: "/").last.map(String.init) ?? name
+        default: return model.selectedModel?.shortName ?? "No model selected"
         }
     }
 
@@ -244,6 +253,21 @@ private struct RunPanel: View {
             guard let selected = model.selectedModel else { return "Pick a model on the left" }
             return "\(Format.bytes(selected.sizeBytes)) · ready to start"
         }
+    }
+
+    /// What the empty half of the panel is for, rather than blank space.
+    private var idleHint: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            SectionHeading("Throughput")
+            Text("Start the model to measure it.")
+                .font(.system(size: 13)).foregroundStyle(.secondary)
+            Text("Dyno reads tokens per second, time to first token, prefill rate and "
+                 + "prompt-cache hits from inside the generation loop — not estimated "
+                 + "from the outside.")
+                .font(.system(size: 11)).foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 4)
     }
 
     // -- measured throughput ------------------------------------------------
@@ -300,9 +324,14 @@ private struct RunPanel: View {
             MeterRow(
                 label: "Bandwidth",
                 value: snapshot.bandwidth.totalGBps.map { String(format: "%.0f GB/s", $0) } ?? "—",
-                detail: model.system.peakBandwidthGBps.map { String(format: "of %.0f", $0) },
+                detail: model.system.peakBandwidthGBps.map { String(format: "of %.0f", $0) }
+                    ?? "peak unknown",
+                // Without a published peak for this chip, scale against what
+                // this machine has actually reached rather than showing a bar
+                // pinned at 100% of itself.
                 fraction: (snapshot.bandwidth.totalGBps ?? 0)
-                    / (model.system.peakBandwidthGBps ?? max(snapshot.bandwidth.totalGBps ?? 1, 1)),
+                    / (model.system.peakBandwidthGBps
+                       ?? max(model.history.bandwidth.peak * 1.25, 64)),
                 tint: .blue
             )
             MeterRow(

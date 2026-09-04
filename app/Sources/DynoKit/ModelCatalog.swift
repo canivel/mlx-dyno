@@ -9,6 +9,15 @@ public struct CatalogModel: Sendable, Identifiable, Hashable {
     public var likes: Int
     public var sizeBytes: Int64?
     public var quantization: String?
+    public var pipeline: String?
+    public var createdAt: Date?
+    public var updatedAt: Date?
+
+    /// Multimodal models are still servable, but worth flagging: they are
+    /// bigger than a text-only build of the same weights.
+    public var isMultimodal: Bool {
+        pipeline == "image-text-to-text" || pipeline == "any-to-any"
+    }
 
     public var sizeGB: Double? {
         guard let sizeBytes else { return nil }
@@ -23,9 +32,53 @@ public struct CatalogModel: Sendable, Identifiable, Hashable {
 /// the browser should stay responsive whether or not a model is loaded.
 public enum ModelCatalog {
     private static let base = "https://huggingface.co/api/models"
-    /// `filter=mlx` alone also returns speech and vision models; the pipeline
-    /// tag narrows it to things this app can actually serve.
-    private static let common = "filter=mlx&pipeline_tag=text-generation"
+
+    /// How the hub should order results.
+    public enum Sort: String, Sendable, CaseIterable, Identifiable {
+        /// Newest repositories first — what "just released" means on the hub.
+        case recent
+        /// Recently re-uploaded or fixed.
+        case updated
+        case popular
+        case liked
+
+        public var id: String { rawValue }
+
+        public var title: String {
+            switch self {
+            case .recent: return "Newest"
+            case .updated: return "Updated"
+            case .popular: return "Popular"
+            case .liked: return "Liked"
+            }
+        }
+
+        var apiValue: String {
+            switch self {
+            case .recent: return "createdAt"
+            case .updated: return "lastModified"
+            case .popular: return "downloads"
+            case .liked: return "likes"
+            }
+        }
+    }
+
+    /// Pipeline tags this app can actually serve.
+    ///
+    /// Filtering on `pipeline_tag=text-generation` in the query is wrong and
+    /// hides the best models: current multimodal LLMs — Qwen3.8, Gemma 3 — are
+    /// tagged `image-text-to-text`, and many MLX conversions carry no tag at
+    /// all. So the query stays broad and speech and audio models are dropped
+    /// here instead.
+    private static let excludedPipelines: Set<String> = [
+        "automatic-speech-recognition", "text-to-speech", "text-to-audio",
+        "audio-to-audio", "audio-classification", "voice-activity-detection",
+        "text-to-image", "image-to-image", "image-classification",
+        "image-segmentation", "object-detection", "depth-estimation",
+        "text-to-video", "video-classification", "zero-shot-image-classification",
+        "feature-extraction", "sentence-similarity", "fill-mask",
+        "token-classification", "image-feature-extraction",
+    ]
 
     private static let session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
@@ -40,20 +93,17 @@ public enum ModelCatalog {
         }
     }
 
-    /// Most-downloaded MLX text models.
-    public static func featured(limit: Int = 40) async throws -> [CatalogModel] {
-        try await fetch("\(base)?\(common)&sort=downloads&direction=-1&limit=\(limit)")
+    public static func featured(
+        sort: Sort = .recent, limit: Int = 50
+    ) async throws -> [CatalogModel] {
+        try await fetch(query: nil, sort: sort, limit: limit)
     }
 
-    public static func search(_ query: String, limit: Int = 40) async throws -> [CatalogModel] {
+    public static func search(
+        _ query: String, sort: Sort = .recent, limit: Int = 50
+    ) async throws -> [CatalogModel] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return try await featured(limit: limit) }
-        let escaped = trimmed.addingPercentEncoding(
-            withAllowedCharacters: .urlQueryAllowed
-        ) ?? trimmed
-        return try await fetch(
-            "\(base)?\(common)&search=\(escaped)&sort=downloads&direction=-1&limit=\(limit)"
-        )
+        return try await fetch(query: trimmed.isEmpty ? nil : trimmed, sort: sort, limit: limit)
     }
 
     /// Total download size, summed from the repository's file listing.
@@ -81,15 +131,30 @@ public enum ModelCatalog {
         return total > 0 ? total : nil
     }
 
-    private static func fetch(_ urlString: String) async throws -> [CatalogModel] {
-        guard let url = URL(string: urlString) else { throw CatalogError.unreachable }
+    private static func fetch(
+        query: String?, sort: Sort, limit: Int
+    ) async throws -> [CatalogModel] {
+        // Ask for extra: some of what comes back is filtered out below.
+        var components = "filter=mlx&sort=\(sort.apiValue)&direction=-1&limit=\(limit * 2)"
+        if let query, !query.isEmpty {
+            let escaped = query.addingPercentEncoding(
+                withAllowedCharacters: .urlQueryAllowed
+            ) ?? query
+            components += "&search=\(escaped)"
+        }
+        guard let url = URL(string: "\(base)?\(components)") else {
+            throw CatalogError.unreachable
+        }
         guard let (data, response) = try? await session.data(from: url),
               (response as? HTTPURLResponse)?.statusCode == 200,
               let payload = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]]
         else { throw CatalogError.unreachable }
 
-        return payload.compactMap { entry in
+        let models: [CatalogModel] = payload.compactMap { entry in
             guard let id = entry["id"] as? String else { return nil }
+            if let pipeline = entry["pipeline_tag"] as? String,
+               excludedPipelines.contains(pipeline) { return nil }
+
             let parts = id.split(separator: "/", maxSplits: 1).map(String.init)
             let name = parts.count > 1 ? parts[1] : id
             return CatalogModel(
@@ -99,9 +164,25 @@ public enum ModelCatalog {
                 downloads: (entry["downloads"] as? NSNumber)?.intValue ?? 0,
                 likes: (entry["likes"] as? NSNumber)?.intValue ?? 0,
                 sizeBytes: nil,
-                quantization: quantization(in: name)
+                quantization: quantization(in: name),
+                pipeline: entry["pipeline_tag"] as? String,
+                createdAt: date(from: entry["createdAt"] as? String),
+                updatedAt: date(from: entry["lastModified"] as? String)
             )
         }
+        return Array(models.prefix(limit))
+    }
+
+    private static let isoFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static func date(from raw: String?) -> Date? {
+        guard let raw else { return nil }
+        return isoFormatter.date(from: raw)
+            ?? ISO8601DateFormatter().date(from: raw)
     }
 
     /// MLX conversions carry their precision in the repository name; showing it

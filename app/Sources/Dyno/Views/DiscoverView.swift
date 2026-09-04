@@ -34,6 +34,16 @@ struct DiscoverView: View {
             if model.isSearching {
                 ProgressView().controlSize(.small).scaleEffect(0.6)
             }
+            Picker("", selection: Binding(
+                get: { model.catalogSort },
+                set: { model.catalogSort = $0 }
+            )) {
+                ForEach(ModelCatalog.Sort.allCases) { Text($0.title).tag($0) }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .controlSize(.small)
+            .frame(width: 104)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 11)
@@ -104,6 +114,13 @@ private struct CatalogRow: View {
                             .padding(.horizontal, 5).padding(.vertical, 1)
                             .background(Color.accentColor.opacity(0.15), in: Capsule())
                     }
+                    if candidate.isMultimodal {
+                        Text("vision")
+                            .font(.system(size: 9))
+                            .padding(.horizontal, 5).padding(.vertical, 1)
+                            .background(Color.secondary.opacity(0.14), in: Capsule())
+                            .foregroundStyle(.secondary)
+                    }
                     if !fitsComfortably {
                         Label("too large", systemImage: "exclamationmark.triangle.fill")
                             .font(.system(size: 9))
@@ -115,6 +132,9 @@ private struct CatalogRow: View {
                     Text(candidate.author)
                     if let size = candidate.sizeBytes {
                         Text("· \(Format.bytes(size))")
+                    }
+                    if let released = candidate.createdAt {
+                        Text("· \(Self.relative(released))")
                     }
                     Text("· \(formatted(candidate.downloads)) downloads")
                 }
@@ -162,6 +182,16 @@ private struct CatalogRow: View {
                 .controlSize(.small)
                 .disabled(model.runtime == nil)
         }
+    }
+
+    private static let relativeFormatter: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter
+    }()
+
+    static func relative(_ date: Date) -> String {
+        relativeFormatter.localizedString(for: date, relativeTo: Date())
     }
 
     private func formatted(_ count: Int) -> String {
