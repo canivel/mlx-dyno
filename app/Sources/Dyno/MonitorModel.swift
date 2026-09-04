@@ -27,6 +27,11 @@ final class MonitorModel {
     private(set) var runtime: Runtime.Kind?
     var selectedModel: LocalModel?
 
+    // -- router ---------------------------------------------------------------
+    private(set) var router = RouterClient.Snapshot()
+    @ObservationIgnored private let routerClient = RouterClient()
+    @ObservationIgnored private var lastRouterPoll: Date = .distantPast
+
     // -- catalog -------------------------------------------------------------
     private(set) var catalog: [CatalogModel] = []
     private(set) var catalogError: String?
@@ -290,6 +295,16 @@ final class MonitorModel {
                 self.history.push(snapshot)
                 self.isSampling = false
                 self.onUpdate?()
+            }
+        }
+
+        // The router is a separate process; poll it gently and independently.
+        if Date().timeIntervalSince(lastRouterPoll) >= 2.0 {
+            lastRouterPoll = Date()
+            let client = routerClient
+            Task { @MainActor [weak self] in
+                let snapshot = await client.fetch()
+                self?.router = snapshot
             }
         }
 

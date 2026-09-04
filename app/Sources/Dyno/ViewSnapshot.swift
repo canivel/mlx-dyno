@@ -34,6 +34,8 @@ enum ViewSnapshot {
              CGSize(width: 980, height: 620)),
             ("window-run", { AnyView(MainWindow(model: model, initialTab: .run)) },
              CGSize(width: 980, height: 620)),
+            ("window-router", { AnyView(MainWindow(model: model, initialTab: .router)) },
+             CGSize(width: 980, height: 620)),
             ("window-observe", { AnyView(MainWindow(model: model, initialTab: .observe)) },
              CGSize(width: 980, height: 700)),
             ("window-discover", { AnyView(MainWindow(model: model, initialTab: .discover)) },
@@ -84,6 +86,7 @@ enum ViewSnapshot {
             RunLoop.main.run(until: Date().addingTimeInterval(0.2))
             if !model.catalog.isEmpty,
                !model.localModels.isEmpty,
+               model.router.isReachable,
                model.snapshot.interval > 0 { break }
         }
         // A little longer so async sizes and a second sample arrive.

@@ -90,7 +90,62 @@ and wall power charted over time, with the server's own counters (requests,
 tokens, TTFT, prefill rate, prompt-cache hit rate) and the processes competing
 for the GPU.
 
+**Router** — see below.
+
 **Discover** — search the Hugging Face hub and download in one click.
+
+## The router
+
+```sh
+dyno route
+```
+
+One OpenAI-compatible endpoint in front of every model you have running.
+Point any client at `127.0.0.1:8970` with model `"auto"` and it picks.
+
+What makes a *local* router different from OpenRouter is that the constraint is
+memory, not money. Only two or three large models fit at once, reaching a
+non-resident one costs tens of seconds of loading, and cost is measured in
+seconds and watts. Dyno already knows which models are resident, how much
+headroom is left and how fast each one actually runs, so it can decide on facts
+rather than a price list.
+
+Four mechanisms, in the order they get a say:
+
+1. **Explicit rules** — readable and predictable, no model call. Match on
+   length, a regex or a keyword; send to a tier or a named model.
+2. **Self-routing** — the first turn goes to the strongest model, which then
+   tags the conversation's difficulty; later turns follow the tag. The tagging
+   call happens after the answer is already on its way back, so it costs the
+   turn that pays for it nothing.
+3. **Residency-aware cost** — among models clearing a tier, pick the one that
+   will actually finish first, from measured throughput, queue depth and the
+   load time a non-resident model would cost.
+4. **Confidence escalation** — the model's own token probabilities say whether
+   it was guessing. Below the threshold, retry on the next model up.
+
+Every decision is recorded with the candidates it rejected and why, visible in
+the Router tab or at `/routes`. A router you cannot interrogate is one you end
+up switching off.
+
+```
+14:22:07  "Prove the halting problem is undecidable…"    8.6s
+  ↗ Qwen3.8-27B-MLX-4bit   self-routing  easy  confidence 0.64
+     escalated from Qwen1.5-0.5B-Chat —
+     mean token probability 0.64 below 0.75
+```
+
+The escalation threshold is calibrated rather than round: measured on
+Qwen1.5-0.5B, a question it handled well scored **0.95** and one well beyond it
+scored **0.64**, so the default sits at 0.75 between them.
+
+```sh
+dyno route --list                        # what it can see, strongest first
+dyno route --backend 8971 --backend 8972 # only these
+dyno route --rules rules.json            # explicit rules
+dyno route --escalate-below 0            # never escalate
+dyno route --trace-file routes.jsonl     # append every decision
+```
 
 Under it all, an OpenAI-compatible endpoint on `127.0.0.1:8971` that any client
 can point at.

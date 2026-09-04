@@ -19,6 +19,7 @@ struct MainWindow: View {
     enum Tab: String, CaseIterable, Identifiable {
         case chat = "Chat"
         case run = "Models"
+        case router = "Router"
         case observe = "Performance"
         case discover = "Discover"
         var id: String { rawValue }
@@ -34,7 +35,7 @@ struct MainWindow: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(width: 340)
+                .frame(width: 420)
                 Spacer()
                 if case let .running(name, port) = model.serverState {
                     HStack(spacing: 5) {
@@ -52,6 +53,8 @@ struct MainWindow: View {
             switch tab {
             case .chat:
                 ChatView(model: model)
+            case .router:
+                RouterView(model: model)
             case .observe:
                 ObservabilityView(model: model)
             case .run:

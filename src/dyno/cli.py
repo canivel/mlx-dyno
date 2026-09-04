@@ -24,12 +24,14 @@ commands:
            (Prometheus /metrics and JSON /stats)
   top      live dashboard of GPU, power, unified memory and bandwidth
   pull     download a model from the Hugging Face hub
+  route    one endpoint in front of every running model, choosing between them
 
   dyno serve --help    every mlx_lm.server flag, plus the metrics endpoints
   dyno top --help      intervals, JSON and CSV output
 
 examples:
   dyno pull mlx-community/Qwen3-8B-4bit
+  dyno route --list
   dyno serve --model mlx-community/Qwen3-8B-4bit --port 8971
   dyno top
   dyno top --csv run.csv -i 0.5
@@ -71,6 +73,11 @@ def main(argv: list[str] | None = None) -> int:
             print(SERVE_MISSING, file=sys.stderr, end="")
             return 1
         return pull_main(rest)
+
+    if command == "route":
+        from .router.cli import main as route_main
+
+        return route_main(rest)
 
     if command == "top":
         from .monitor.cli import main as monitor_main
