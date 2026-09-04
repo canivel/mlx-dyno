@@ -13,7 +13,7 @@ keywords = ["mlx", "apple-silicon", "llm", "inference", "server", "metrics", "pr
 dependencies = ["mlx-lm>=0.28"]
 
 [project.urls]
-Homepage = "https://github.com/canivel/macos-gpu-llm-monitor"
+Homepage = "https://github.com/canivel/mlx-serve"
 
 [project.scripts]
 mlxserve = "mlxserve.cli:main"

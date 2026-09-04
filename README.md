@@ -1,38 +1,80 @@
-# MLX Station
+# mlx-serve
 
-One app for running local LLMs on Apple Silicon and seeing exactly what they are
-doing — model throughput and machine telemetry in the same place, because on a
-Mac they are the same story: tokens per second is set by memory bandwidth, and
-memory bandwidth is set by how the model fits.
+An MLX inference server for Apple Silicon that reports what it is actually
+doing — tokens per second, time to first token, prefill throughput, queue wait
+and prompt-cache hits — plus a menu bar app that shows those next to the
+machine's own telemetry.
+
+`llama.cpp` and vLLM both expose Prometheus metrics, so anything watching them
+knows the real tokens/sec. On Apple Silicon the fast path is MLX, and
+`mlx_lm.server` measures throughput internally but never exposes it — so a
+monitor has to guess from the outside. That is the gap this closes.
+
+**`mlxserve` is not a fork.** It imports `mlx_lm.server`, swaps two classes for
+instrumented subclasses, and hands control back. Every existing flag keeps
+working, and so do mlx_lm's batching, prompt caching and speculative decoding.
+The additions are timing hooks inside the token stream and two endpoints.
 
 Three pieces, in one repository:
 
 | | What it is |
 |---|---|
-| **MLX Station.app** | Menu bar app. Runs models, shows their metrics and the machine's. |
-| **`mlxserve`** | MLX inference server that reports its own throughput over `/metrics` and `/stats`. |
+| **`mlxserve`** | MLX inference server reporting its own throughput over `/metrics` and `/stats`. Useful on its own. |
+| **MLX Station.app** | Menu bar app. Starts models, shows their metrics and the machine's. |
 | **`gpumon`** | Terminal dashboard for the hardware metrics alone, with JSON and CSV output. |
+
+On a Mac these belong together: tokens per second is set by memory bandwidth,
+and memory bandwidth is set by how the model fits.
 
 ## Why this exists
 
-`llama.cpp` and vLLM both expose Prometheus metrics, so anything watching them
-knows the real tokens/sec. On Apple Silicon the fast path is MLX, and
-`mlx_lm.server` measures throughput internally but never exposes it — so a
-monitor has to guess from the outside.
+Running a large model locally on a Mac is mostly a memory problem, and the
+tools do not show you memory the way it matters.
 
-`mlxserve` closes that gap. It is **not a fork**: it imports `mlx_lm.server`,
-swaps two classes for instrumented subclasses, and hands control back. Every
-existing flag keeps working, and so do mlx_lm's batching, prompt caching and
-speculative decoding. The additions are timing hooks inside the token stream and
-two endpoints.
+There is no `nvidia-smi` on macOS. Activity Monitor reports a GPU percentage
+that cannot tell a GPU pinned at a low clock apart from one doing real work,
+and reports memory used without reference to the only ceiling that counts: how
+much unified memory Metal will actually let the GPU hold. On a 128 GB machine
+that is 107.5 GB, not 128. Cross it and allocations quietly spill back to CPU
+memory, throughput falls off a cliff, and nothing tells you why.
+
+Then there is throughput itself. Token generation is memory-bound — every token
+re-reads the entire weight set — so tokens per second is set by bandwidth, not
+by GPU utilisation. A GPU reading 99% busy while pulling 250 GB/s and one
+pulling 400 GB/s are different machines having very different days. Watching
+utilisation tells you almost nothing; watching bandwidth tells you nearly
+everything.
+
+llama.cpp and vLLM both publish Prometheus metrics, so anyone can read their
+real throughput. On Apple Silicon the fast path is MLX — and `mlx_lm` computes
+throughput internally on every single request, then discards it. Anything
+watching from outside has to infer it.
+
+You can infer it, up to a point. Read bandwidth divided by weight-set size gives
+the decode rate, and on a 27B 8-bit model on an M5 Max that predicted 8.97
+tok/s against 8.70 measured: within 3%. But the moment a second request shared
+the GPU, the same estimate read ~10.3 against 8.73 actual. An estimate that is
+excellent in isolation and 18% high under load is not something to benchmark
+against, tune a batch size with, or decide a quantisation level on.
+
+So expose the number instead of guessing it. `mlxserve` adds the instrumentation
+`mlx_lm` was already most of the way to, without forking it — the measurement
+happens inside the token stream, where it is simply a fact rather than an
+inference. The app then puts measured throughput beside GPU residency, clock,
+power draw and bandwidth, because on a unified-memory machine those are one
+system and not four.
+
+None of it needs `sudo`. Most Apple Silicon monitors shell out to
+`powermetrics`, which requires root; the same counters are readable one level
+down through IOReport, IOKit and Metal.
 
 ## Install
 
 Requires macOS on Apple Silicon and Xcode's Swift toolchain.
 
 ```sh
-git clone git@github.com:canivel/macos-gpu-llm-monitor.git
-cd macos-gpu-llm-monitor
+git clone git@github.com:canivel/mlx-serve.git
+cd mlx-serve
 
 # the server
 uv venv ~/.mlxserve/venv

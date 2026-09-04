@@ -22,7 +22,7 @@ dependencies = ["rich>=13.7"]
 gpumon = "gpumon.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/canivel/macos-gpu-llm-monitor"
+Homepage = "https://github.com/canivel/mlx-serve"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/gpumon"]
