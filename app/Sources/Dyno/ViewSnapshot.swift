@@ -35,6 +35,8 @@ enum ViewSnapshot {
             ("window-run", { AnyView(MainWindow(model: model, initialTab: .run)) },
              CGSize(width: 980, height: 620)),
             ("window-router", { AnyView(MainWindow(model: model, initialTab: .router)) },
+             CGSize(width: 980, height: 760)),
+            ("window-inspect", { AnyView(MainWindow(model: model, initialTab: .inspect)) },
              CGSize(width: 980, height: 620)),
             ("window-observe", { AnyView(MainWindow(model: model, initialTab: .observe)) },
              CGSize(width: 980, height: 700)),

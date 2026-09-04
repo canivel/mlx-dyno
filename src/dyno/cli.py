@@ -21,20 +21,28 @@ usage: dyno <command> [options]
 
 commands:
   serve    run an MLX model and expose its generation metrics
-           (Prometheus /metrics and JSON /stats)
-  top      live dashboard of GPU, power, unified memory and bandwidth
-  pull     download a model from the Hugging Face hub
   route    one endpoint in front of every running model, choosing between them
+  run      one prompt, one answer, with the numbers
+  ps       model servers that are running
+  stop     stop a model server
+  pull     download a model from the Hugging Face hub
+  bench    measure models under conditions recorded with the result
+  inspect  token probabilities, and what a quantisation changed
+  harness  point coding tools at your local models
+  top      live dashboard of GPU, power, unified memory and bandwidth
 
   dyno serve --help    every mlx_lm.server flag, plus the metrics endpoints
   dyno top --help      intervals, JSON and CSV output
 
 examples:
   dyno pull mlx-community/Qwen3-8B-4bit
-  dyno route --list
   dyno serve --model mlx-community/Qwen3-8B-4bit --port 8971
+  dyno run "explain B-trees"
+  dyno route --list
+  dyno bench --model A --model B --csv results.csv
+  dyno inspect "The capital of France is" --port 8971 --port 8972
+  dyno harness install aider
   dyno top
-  dyno top --csv run.csv -i 0.5
 """
 
 SERVE_MISSING = """\
@@ -78,6 +86,24 @@ def main(argv: list[str] | None = None) -> int:
         from .router.cli import main as route_main
 
         return route_main(rest)
+
+    if command in ("ps", "run", "stop"):
+        from .manage import ps, run, stop
+
+        return {"ps": ps, "run": run, "stop": stop}[command](rest)
+
+    if command in ("bench", "inspect"):
+        try:
+            module = __import__(f"dyno.{command}", fromlist=["main"])
+        except ImportError:
+            print(SERVE_MISSING, file=sys.stderr, end="")
+            return 1
+        return module.main(rest)
+
+    if command == "harness":
+        from .harness import main as harness_main
+
+        return harness_main(rest)
 
     if command == "top":
         from .monitor.cli import main as monitor_main

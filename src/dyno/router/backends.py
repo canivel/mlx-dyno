@@ -11,12 +11,16 @@ from __future__ import annotations
 import json
 import re
 import socket
+import shutil
 import subprocess
 import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from typing import Any
+
+# lsof lives in /usr/sbin, which a subprocess PATH often omits.
+_LSOF = shutil.which("lsof") or "/usr/sbin/lsof"
 
 # Ports commonly used by local model servers, probed when none are configured.
 # The 897x block is where `dyno serve` puts them; the rest are other runtimes'
@@ -123,7 +127,7 @@ _IDENTITY_CACHE: dict[tuple[int, str], str] = {}
 def _listening_pid(port: int) -> str | None:
     try:
         listing = subprocess.run(
-            ["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-Fp"],
+            [_LSOF, "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-Fp"],
             capture_output=True, text=True, timeout=6,
         ).stdout
     except (OSError, subprocess.SubprocessError):

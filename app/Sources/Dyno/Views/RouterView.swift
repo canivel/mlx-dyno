@@ -20,6 +20,7 @@ struct RouterView: View {
                     header
                     if showingSettings { settings }
                     backends
+                    harnesses
                     decisions
                 }
                 .padding(20)
@@ -269,6 +270,59 @@ struct RouterView: View {
             .padding(.horizontal, 5).padding(.vertical, 1)
             .background(Color.secondary.opacity(0.15), in: Capsule())
             .foregroundStyle(.secondary)
+    }
+
+    // MARK: - Harnesses
+
+    @State private var harnessEntries: [HarnessEntry] = []
+    @State private var harnessNote: String?
+
+    private var harnesses: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            SectionHeading("Point a tool at this endpoint",
+                           trailing: "http://127.0.0.1:\(String(model.routerPort))/v1")
+            if harnessEntries.isEmpty {
+                Text("Loading…").font(.system(size: 10)).foregroundStyle(.tertiary)
+            }
+            ForEach(harnessEntries) { entry in
+                HStack(spacing: 10) {
+                    Image(systemName: entry.isConfigured
+                          ? "checkmark.circle.fill" : "circle.dashed")
+                        .font(.system(size: 11))
+                        .foregroundStyle(entry.isConfigured ? Color.green : Color.secondary.opacity(0.6))
+                    Text(entry.name).font(.system(size: 12, weight: .medium))
+                    Text(entry.detail).font(.system(size: 10)).foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 8)
+                    Text(entry.configPath)
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(.tertiary).lineLimit(1).truncationMode(.head)
+                        .frame(maxWidth: 220, alignment: .trailing)
+                    Button(entry.isConfigured ? "Rewrite" : "Configure") {
+                        configure(entry)
+                    }
+                    .controlSize(.small)
+                }
+            }
+            if let harnessNote {
+                Text(harnessNote).font(.system(size: 10)).foregroundStyle(.secondary)
+            }
+            Text("Configs name model “auto”, which asks the router to choose.")
+                .font(.system(size: 9)).foregroundStyle(.tertiary)
+        }
+        .task {
+            if harnessEntries.isEmpty { harnessEntries = await Harnesses.list() }
+        }
+    }
+
+    private func configure(_ entry: HarnessEntry) {
+        Task { @MainActor in
+            let endpoint = "http://127.0.0.1:\(model.routerPort)"
+            let result = await Harnesses.install(entry.key, endpoint: endpoint, model: "auto")
+            harnessNote = result?
+                .split(separator: "\n").first.map(String.init) ?? "could not write the config"
+            harnessEntries = await Harnesses.list()
+        }
     }
 
     private var decisions: some View {

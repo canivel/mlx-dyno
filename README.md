@@ -71,7 +71,7 @@ the app**; right-click it for a summary without leaving what you are doing.
 
 ## Using it
 
-Four tabs — **Models**, **Router**, **Performance**, **Discover** — and a
+Five tabs — **Models**, **Router**, **Inspect**, **Performance**, **Discover** — and a
 **Chat** button at the top right (⌘J) that swaps the view for the conversation
 and back again, leaving whichever tab you were on selected.
 
@@ -94,7 +94,12 @@ and wall power charted over time, with the server's own counters (requests,
 tokens, TTFT, prefill rate, prompt-cache hit rate) and the processes competing
 for the GPU.
 
-**Router** — see below.
+**Router** — see below. Also where you point Continue, Aider, Zed or Cline at
+your local models, in one click.
+
+**Inspect** — the model's own token probabilities. Where it hesitated, what it
+nearly said instead, and — running two builds at the same seed — exactly which
+token a quantisation changed. See below.
 
 **Discover** — search the Hugging Face hub and download in one click.
 
@@ -259,6 +264,54 @@ For a runtime that reports no throughput, the app estimates it from memory
 bandwidth and always marks it `≈ est.`, showing `—` rather than a number
 whenever more than one model is loaded and bandwidth cannot be attributed.
 
+## Measuring, honestly
+
+```sh
+dyno bench --model A --model B --repeat 3 --csv results.csv
+```
+
+Not another tokens-per-second number. Numbers like that are posted constantly
+and are almost never comparable: different prompts, a warm or cold machine,
+something else on the GPU. `dyno bench` runs models **one at a time** so each
+sees the same memory situation, records the conditions next to the result, and
+says when they make a comparison unsafe:
+
+```
+model                        tok/s  spread   TTFT   weights  agree
+Qwen1.5-0.5B-Chat             65.6     54%  0.18s   1.15 GB    ref
+Qwen1.5-0.5B-Chat-4bit        90.5     17%  0.25s   0.24 GB     0%
+
+Conditions that make these numbers unsafe to compare:
+  Qwen1.5-0.5B-Chat: mlx_lm.server held 43.2 GB of GPU memory
+```
+
+Two things there most harnesses do not report. **Spread** — how much the trials
+disagreed, so a 54% spread tells you the median is not yet a measurement. And
+**agreement** — how often a model gave byte-identical output to the reference at
+the same seed. It is a crude quality proxy and says so: identical output means
+the quantisation changed nothing on that prompt, not that either answer is good.
+
+## Looking inside a generation
+
+```sh
+dyno inspect "why do B-trees suit range queries" --port 8971 --port 8973
+```
+
+Every token carries the probability the model gave it and the alternatives it
+weighed. That answers where a model hesitated — and, with two builds of one
+model at the same seed, exactly what a quantisation cost:
+
+```
+Qwen1.5-0.5B-Chat vs Qwen1.5-0.5B-Chat-4bit
+  diverged at token 6 of 90 (73 tokens differ)
+    6  'efficient' (20%)  →  'optimized' (30%)   reference considered it
+   11  'they' (97%)       →  'as' (32%)          reference never considered it
+```
+
+That last column is the useful one. A divergence the reference also ranked is a
+near-tie; one it never ranked at all is the cheaper build going somewhere the
+original would not have.
+
 ## Machine metrics
 
 No `sudo`, ever. Most Apple Silicon monitors shell out to `powermetrics`, which
@@ -280,7 +333,14 @@ tools report as GPU usage, is unreliable on recent macOS — it reads near 100% 
 an idle machine. This ignores it in favour of P-state residency.
 
 ```sh
+dyno serve --model <path>      # run a model with metrics
+dyno route                     # one endpoint in front of them all
+dyno run "explain B-trees"     # one prompt, one answer, with the numbers
+dyno ps / dyno stop            # what is running, and stopping it
 dyno pull <repo-id>            # download a model from the hub
+dyno bench --model A --model B # measure, with the conditions recorded
+dyno inspect "…" --port 8971   # token probabilities and quantisation diffs
+dyno harness install aider     # point a coding tool at your models
 dyno top                       # live dashboard
 dyno top --once                # one snapshot
 dyno top --json                # newline-delimited JSON
