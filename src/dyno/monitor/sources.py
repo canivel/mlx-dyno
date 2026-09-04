@@ -1,4 +1,4 @@
-"""Collectors for every metric gpumon reports.
+"""Collectors for every metric dyno reports.
 
 Each function here talks to exactly one system interface and returns plain
 Python values, so the sampler can compose them without caring how the number
@@ -265,7 +265,7 @@ _RUNTIME_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
 # Shells and helpers whose command line often merely mentions a runtime name.
 _NOT_A_RUNTIME = frozenset(
     {"zsh", "bash", "sh", "fish", "tmux", "screen", "grep", "ps", "tail", "less",
-     "vim", "nvim", "code", "man", "watch", "sudo", "env", "xargs", "gpumon"}
+     "vim", "nvim", "code", "man", "watch", "sudo", "env", "xargs", "dyno top"}
 )
 
 # A matched runtime is worth showing even when idle, but not when it is a few

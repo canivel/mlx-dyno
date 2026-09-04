@@ -29,7 +29,7 @@ enum Defaults {
     static let interval = "updateInterval"
     static let menuBarContent = "menuBarContent"
     static let peakBandwidth = "peakBandwidthGBps"
-    static let mlxservePath = "mlxservePath"
+    static let dynoPath = "dynoPath"
     static let modelFolders = "modelFolders"
     static let serverPort = "serverPort"
 
@@ -38,7 +38,7 @@ enum Defaults {
             interval: 1.0,
             menuBarContent: MenuBarContent.gpuAndPower.rawValue,
             peakBandwidth: 0.0,
-            mlxservePath: "",
+            dynoPath: "",
             modelFolders: [String](),
             // Away from 8080 and 1234, which other local servers commonly take.
             serverPort: 8971,

@@ -69,7 +69,7 @@ class Dashboard:
     def header(self, snapshot: Snapshot, width: int) -> RenderableType:
         system = self.system
         left = Text()
-        left.append("gpumon ", style="bold cyan")
+        left.append("dyno ", style="bold cyan")
         left.append(system.chip, style="bold white")
         details = [f"{system.gpu_cores}-core GPU"] if system.gpu_cores else []
         details.append(f"{fmt_bytes(system.total_memory, 0)} unified")

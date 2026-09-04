@@ -79,7 +79,7 @@ private struct TokenCounters {
 private struct ServerCapabilities {
     var ollamaPS = false
     var metrics = false
-    /// mlxserve's JSON endpoint: everything /metrics has, plus per-request
+    /// Dyno's JSON endpoint: everything /metrics has, plus per-request
     /// detail, in one request.
     var stats = false
     /// Model identity, resolved once: it does not change while the process
@@ -271,7 +271,7 @@ public final class ModelMonitor: @unchecked Sendable {
         }
     }
 
-    /// mlxserve reports its own generation metrics, measured inside the decode
+    /// `dyno serve` reports its own generation metrics, measured inside the decode
     /// loop, so nothing here has to be inferred.
     private func serverStats(port: UInt16) async -> ServerStats? {
         guard let payload = await getJSON(port: port, path: "/stats") else { return nil }

@@ -36,7 +36,7 @@ public final class ProcessScanner {
     /// Shells and helpers whose command line often merely mentions a runtime.
     private static let notARuntime: Set<String> = [
         "zsh", "bash", "sh", "fish", "tmux", "screen", "grep", "ps", "tail", "less",
-        "vim", "nvim", "code", "man", "watch", "sudo", "env", "xargs", "gpumon",
+        "vim", "nvim", "code", "man", "watch", "sudo", "env", "xargs", "dyno",
     ]
 
     /// A matched runtime is worth showing even when idle, but not when it is a

@@ -1,5 +1,5 @@
 import Foundation
-import MLXStationKit
+import DynoKit
 import Observation
 import SwiftUI
 
@@ -19,7 +19,7 @@ final class MonitorModel {
     // -- local model serving -------------------------------------------------
     private(set) var localModels: [LocalModel] = []
     private(set) var serverState: ServerController.State = .stopped
-    private(set) var mlxservePath: String?
+    private(set) var dynoPath: String?
     var selectedModel: LocalModel?
 
     var modelFolders: [String] {
@@ -45,7 +45,7 @@ final class MonitorModel {
     @ObservationIgnored private var sampler: Sampler?
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private let queue = DispatchQueue(
-        label: "com.gpumonitor.sampler", qos: .utility
+        label: "com.canivel.dyno.sampler", qos: .utility
     )
     @ObservationIgnored private var isSampling = false
     @ObservationIgnored private var lastModelRefresh: Date = .distantPast
@@ -73,8 +73,8 @@ final class MonitorModel {
             startupError = "Could not read the system telemetry counters. "
                 + "GPU Monitor needs an Apple Silicon Mac."
         }
-        let configured = defaults.string(forKey: Defaults.mlxservePath)
-        mlxservePath = ServerController.findExecutable(
+        let configured = defaults.string(forKey: Defaults.dynoPath)
+        dynoPath = ServerController.findExecutable(
             configured: (configured?.isEmpty == false) ? configured : nil
         )
         server.onStateChange = { [weak self] state in
@@ -106,7 +106,7 @@ final class MonitorModel {
     }
 
     func startSelectedModel() {
-        guard let executable = mlxservePath, let model = selectedModel else { return }
+        guard let executable = dynoPath, let model = selectedModel else { return }
         let port = UInt16(UserDefaults.standard.integer(forKey: Defaults.serverPort))
         server.start(executable: executable, model: model, port: port == 0 ? 8971 : port)
     }

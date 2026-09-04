@@ -2,21 +2,21 @@
 import PackageDescription
 
 let package = Package(
-    name: "MLXStation",
+    name: "Dyno",
     platforms: [.macOS(.v14)],
     targets: [
         .target(
-            name: "MLXStationKit",
+            name: "DynoKit",
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .executableTarget(
-            name: "MLXStation",
-            dependencies: ["MLXStationKit"],
+            name: "Dyno",
+            dependencies: ["DynoKit"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .executableTarget(
             name: "probe",
-            dependencies: ["MLXStationKit"],
+            dependencies: ["DynoKit"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
     ]

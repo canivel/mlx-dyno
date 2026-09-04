@@ -11,9 +11,8 @@ import termios
 import time
 import tty
 
+from ..__init__ import __version__  # noqa: F401
 from .model import GB
-
-__version__ = "0.1.0"
 
 _MIN_INTERVAL = 0.2
 _MAX_INTERVAL = 60.0
@@ -21,17 +20,17 @@ _MAX_INTERVAL = 60.0
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="gpumon",
+        prog="dyno top",
         description="GPU, power and unified-memory monitor for local LLM workloads "
         "on Apple Silicon. Reads Apple's own telemetry counters directly, so it "
         "never needs sudo.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "examples:\n"
-            "  gpumon                        live dashboard\n"
-            "  gpumon --once                 one snapshot, then exit\n"
-            "  gpumon --json                 newline-delimited JSON for scripts\n"
-            "  gpumon --csv run.csv -i 0.5   log a benchmark run at 2 Hz\n"
+            "  dyno top                        live dashboard\n"
+            "  dyno top --once                 one snapshot, then exit\n"
+            "  dyno top --json                 newline-delimited JSON for scripts\n"
+            "  dyno top --csv run.csv -i 0.5   log a benchmark run at 2 Hz\n"
         ),
     )
     parser.add_argument(
@@ -61,7 +60,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="minimum memory for a non-LLM GPU process to be listed (default: 1.0)",
     )
     parser.add_argument("--no-color", action="store_true", help="disable colour output")
-    parser.add_argument("--version", action="version", version=f"gpumon {__version__}")
     return parser
 
 
@@ -118,10 +116,10 @@ class KeyReader:
 
 def _require_apple_silicon() -> None:
     if platform.system() != "Darwin":
-        raise SystemExit("gpumon only runs on macOS.")
+        raise SystemExit("dyno only runs on macOS.")
     if platform.machine() != "arm64":
         raise SystemExit(
-            "gpumon needs an Apple Silicon Mac; the counters it reads do not exist on Intel."
+            "dyno needs an Apple Silicon Mac; the counters it reads do not exist on Intel."
         )
 
 

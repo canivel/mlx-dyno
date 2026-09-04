@@ -4,14 +4,14 @@
 set -euo pipefail
 
 cd "$(dirname "$0")"
-APP_NAME="MLX Station"
-BUNDLE_ID="com.danilocanivel.mlxstation"
+APP_NAME="Dyno"
+BUNDLE_ID="com.canivel.dyno"
 VERSION="0.1.0"
 BUILD_DIR="build"
 APP="$BUILD_DIR/$APP_NAME.app"
 
 echo "==> Compiling"
-swift build -c release --product MLXStation
+swift build -c release --product Dyno
 
 echo "==> Rendering icon"
 mkdir -p "$BUILD_DIR"
@@ -21,7 +21,7 @@ iconutil -c icns "$BUILD_DIR/AppIcon.iconset" -o "$BUILD_DIR/AppIcon.icns"
 echo "==> Assembling $APP"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp .build/release/MLXStation "$APP/Contents/MacOS/MLXStation"
+cp .build/release/Dyno "$APP/Contents/MacOS/Dyno"
 cp "$BUILD_DIR/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
@@ -32,7 +32,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleName</key>              <string>$APP_NAME</string>
     <key>CFBundleDisplayName</key>       <string>$APP_NAME</string>
     <key>CFBundleIdentifier</key>        <string>$BUNDLE_ID</string>
-    <key>CFBundleExecutable</key>        <string>MLXStation</string>
+    <key>CFBundleExecutable</key>        <string>Dyno</string>
     <key>CFBundleIconFile</key>          <string>AppIcon</string>
     <key>CFBundlePackageType</key>       <string>APPL</string>
     <key>CFBundleShortVersionString</key><string>$VERSION</string>

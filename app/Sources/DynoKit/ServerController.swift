@@ -1,6 +1,6 @@
 import Foundation
 
-/// Launches and supervises an `mlxserve` process.
+/// Launches and supervises a `dyno serve` process.
 ///
 /// The app deliberately runs the server as a child process rather than
 /// embedding a Python runtime: MLX lives in Python, and a crash in a model load
@@ -23,14 +23,14 @@ public final class ServerController: @unchecked Sendable {
         }
     }
 
-    /// Where `mlxserve` might be, most specific first.
+    /// Where the `dyno` CLI might be, most specific first.
     public static func executableCandidates(configured: String?) -> [String] {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         return [
             configured,
-            "\(home)/.mlxserve/venv/bin/mlxserve",
-            "/opt/homebrew/bin/mlxserve",
-            "/usr/local/bin/mlxserve",
+            "\(home)/.mlx-dyno/venv/bin/dyno",
+            "/opt/homebrew/bin/dyno",
+            "/usr/local/bin/dyno",
         ].compactMap { $0 }
     }
 
@@ -43,7 +43,7 @@ public final class ServerController: @unchecked Sendable {
         // Fall back to PATH.
         guard let path = ProcessInfo.processInfo.environment["PATH"] else { return nil }
         for directory in path.split(separator: ":") {
-            let candidate = (String(directory) as NSString).appendingPathComponent("mlxserve")
+            let candidate = (String(directory) as NSString).appendingPathComponent("dyno")
             if manager.isExecutableFile(atPath: candidate) { return candidate }
         }
         return nil
@@ -87,6 +87,7 @@ public final class ServerController: @unchecked Sendable {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: executable)
         task.arguments = [
+            "serve",
             "--model", model.path,
             "--host", "127.0.0.1",
             "--port", String(port),
@@ -108,15 +109,15 @@ public final class ServerController: @unchecked Sendable {
             // A clean stop already moved us to .stopped; anything else is a crash.
             if case .stopped = self.state { return }
             let reason = finished.terminationStatus == 0
-                ? "mlxserve exited."
-                : "mlxserve exited with status \(finished.terminationStatus)."
+                ? "dyno serve exited."
+                : "dyno serve exited with status \(finished.terminationStatus)."
             self.setState(.failed(reason + " " + self.lastErrorLine()))
         }
 
         do {
             try task.run()
         } catch {
-            setState(.failed("Could not launch mlxserve: \(error.localizedDescription)"))
+            setState(.failed("Could not launch dyno: \(error.localizedDescription)"))
             return
         }
 
@@ -136,7 +137,7 @@ public final class ServerController: @unchecked Sendable {
                 }
                 try? await Task.sleep(nanoseconds: 500_000_000)
             }
-            self.setState(.failed("mlxserve did not become ready in time."))
+            self.setState(.failed("dyno serve did not become ready in time."))
         }
     }
 

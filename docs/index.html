@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MLX Dyno — real metrics for local LLMs on Apple Silicon</title>
+<meta name="description" content="An MLX inference server for Apple Silicon that reports its own tokens/sec, time to first token and prompt-cache hits, plus a native menu bar app for GPU, power and unified-memory telemetry. No sudo.">
+<meta property="og:title" content="MLX Dyno">
+<meta property="og:description" content="Put your model on the dyno. Real tokens/sec for local LLMs on Apple Silicon.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%2315171a'/><g fill='%2334d399'><rect x='14' y='38' width='6' height='12' rx='3'/><rect x='24' y='30' width='6' height='20' rx='3'/><rect x='34' y='22' width='6' height='28' rx='3' fill='%2360c9a8'/><rect x='44' y='14' width='6' height='36' rx='3' fill='%23c2953f'/></g></svg>">
+<style>
+  :root{
+    --bg:#fbfbfa; --panel:#ffffff; --ink:#16181d; --muted:#5d6470; --faint:#8b94a3;
+    --line:#e4e6ea; --accent:#0f7a5a; --accent-soft:#e6f4ef; --warn:#b4601a;
+    --term-bg:#14161a; --term-ink:#d6dbe3; --term-dim:#78818f;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0e1013; --panel:#16191e; --ink:#e8eaee; --muted:#9aa3b1; --faint:#6d7684;
+      --line:#252a32; --accent:#34d399; --accent-soft:#12261f; --warn:#e0a352;
+      --term-bg:#0a0c0f; --term-ink:#d6dbe3; --term-dim:#6d7684;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0e1013; --panel:#16191e; --ink:#e8eaee; --muted:#9aa3b1; --faint:#6d7684;
+    --line:#252a32; --accent:#34d399; --accent-soft:#12261f; --warn:#e0a352;
+    --term-bg:#0a0c0f; --term-ink:#d6dbe3; --term-dim:#6d7684;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+       line-height:1.62;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:860px;margin:0 auto;padding:0 24px}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code,pre{font-family:var(--mono)}
+
+  header{padding:76px 0 44px;border-bottom:1px solid var(--line)}
+  .logo{display:flex;align-items:center;gap:13px;margin-bottom:22px}
+  .logo svg{width:42px;height:42px;flex:none}
+  h1{font-size:34px;margin:0;letter-spacing:-.5px;font-weight:650}
+  .tag{font-size:19px;color:var(--muted);margin:0 0 6px;max-width:62ch}
+  .lede{font-size:15px;color:var(--faint);margin:14px 0 0;max-width:66ch}
+  .badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:24px}
+  .badge{font-family:var(--mono);font-size:11.5px;color:var(--muted);
+         border:1px solid var(--line);border-radius:100px;padding:4px 11px;background:var(--panel)}
+
+  section{padding:52px 0;border-bottom:1px solid var(--line)}
+  section:last-of-type{border-bottom:0}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.9px;color:var(--faint);
+     margin:0 0 20px;font-weight:640}
+  h3{font-size:17px;margin:30px 0 8px;font-weight:620}
+  p{margin:0 0 15px;max-width:68ch}
+  .muted{color:var(--muted)}
+
+  pre.term{background:var(--term-bg);color:var(--term-ink);border-radius:11px;padding:18px 20px;
+       overflow-x:auto;font-size:12.5px;line-height:1.62;margin:0 0 18px;
+       border:1px solid rgba(255,255,255,.07)}
+  pre.term .c{color:var(--term-dim)}
+  pre.term .g{color:#34d399}
+  pre.term .y{color:#e0b252}
+  pre.term .b{color:#6aa9e9}
+  pre.term .w{color:#fff;font-weight:600}
+  .prompt{color:#34d399}
+
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:26px}
+  @media(max-width:700px){.cols{grid-template-columns:1fr}}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin:6px 0 4px;display:block;overflow-x:auto}
+  th,td{text-align:left;padding:9px 12px 9px 0;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--faint);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.6px}
+  td code{font-size:12.5px;color:var(--ink);white-space:nowrap}
+
+  .callout{background:var(--accent-soft);border-left:2px solid var(--accent);
+           border-radius:0 8px 8px 0;padding:16px 18px;margin:22px 0;font-size:14.5px}
+  .callout strong{color:var(--ink)}
+  .num{font-family:var(--mono);font-weight:650;color:var(--accent)}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:18px 20px}
+  .card h4{margin:0 0 6px;font-size:14.5px;font-weight:620}
+  .card p{font-size:13.5px;color:var(--muted);margin:0}
+
+  footer{padding:38px 0 64px;color:var(--faint);font-size:13px}
+  footer a{color:var(--muted)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="logo">
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <rect width="64" height="64" rx="14" fill="#15171a"/>
+        <g><rect x="14" y="38" width="6" height="12" rx="3" fill="#34d399"/>
+        <rect x="24" y="30" width="6" height="20" rx="3" fill="#34d399"/>
+        <rect x="34" y="22" width="6" height="28" rx="3" fill="#60c9a8"/>
+        <rect x="44" y="14" width="6" height="36" rx="3" fill="#c2953f"/></g>
+      </svg>
+      <h1>MLX&nbsp;Dyno</h1>
+    </div>
+    <p class="tag">Put your model on the dyno.</p>
+    <p class="lede">An MLX inference server for Apple Silicon that reports what it is
+      actually doing — tokens per second, time to first token, prefill throughput and
+      prompt-cache hits — plus a native menu bar app that shows those beside the
+      machine's own GPU, power and memory telemetry.</p>
+    <div class="badges">
+      <span class="badge">Apple Silicon</span>
+      <span class="badge">no sudo</span>
+      <span class="badge">OpenAI-compatible</span>
+      <span class="badge">Prometheus /metrics</span>
+      <span class="badge">MIT</span>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <h2>Install</h2>
+<pre class="term"><span class="c"># the server + CLI</span>
+<span class="prompt">$</span> uv venv ~/.mlx-dyno/venv
+<span class="prompt">$</span> uv pip install --python ~/.mlx-dyno/venv/bin/python <span class="y">'mlx-dyno[serve]'</span>
+
+<span class="c"># the menu bar app</span>
+<span class="prompt">$</span> git clone https://github.com/canivel/mlx-dyno &amp;&amp; cd mlx-dyno/app
+<span class="prompt">$</span> ./build.sh &amp;&amp; cp -r build/Dyno.app /Applications/</pre>
+    <p class="muted" style="font-size:14px">The app finds the CLI automatically, so that
+      install path needs no configuration.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Serve a model</h2>
+<pre class="term"><span class="prompt">$</span> dyno serve --model mlx-community/Qwen3-8B-4bit --port 8971
+
+<span class="w">MLX Dyno 0.1.0</span>  ·  serving with live metrics
+  OpenAI API   <span class="b">http://127.0.0.1:8971/v1</span>
+  Metrics      <span class="b">http://127.0.0.1:8971/metrics</span>   <span class="c">(Prometheus)</span>
+  Stats        <span class="b">http://127.0.0.1:8971/stats</span>     <span class="c">(JSON)</span>
+
+<span class="prompt">$</span> curl -s localhost:8971/metrics | grep decode
+<span class="g">mlx:decode_tokens_per_second</span> <span class="w">31.204</span>
+<span class="g">mlx:last_time_to_first_token_seconds</span> <span class="w">1.006</span>
+<span class="g">mlx:tokens_generated_total</span> <span class="w">120</span></pre>
+    <p>Every <code>mlx_lm.server</code> flag still works, because
+      <strong>this is not a fork</strong>. It imports <code>mlx_lm.server</code>, swaps two
+      classes for instrumented subclasses, and hands control back — so batching, prompt
+      caching and speculative decoding all come along unchanged. The additions are timing
+      hooks inside the token stream and two endpoints.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Why this exists</h2>
+    <p>Running a large model locally on a Mac is mostly a memory problem, and the tools do
+      not show you memory the way it matters.</p>
+    <p>There is no <code>nvidia-smi</code> on macOS. Activity Monitor reports a GPU
+      percentage that cannot tell a GPU pinned at a low clock apart from one doing real
+      work, and reports memory used without reference to the only ceiling that counts: how
+      much unified memory Metal will actually let the GPU hold. On a 128&nbsp;GB machine that
+      is <span class="num">107.5 GB</span>, not 128. Cross it and allocations quietly spill
+      back to CPU memory, throughput falls off a cliff, and nothing tells you why.</p>
+    <p>Then there is throughput itself. Token generation is memory-bound — every token
+      re-reads the entire weight set — so tokens per second is set by <em>bandwidth</em>,
+      not by GPU utilisation. A GPU reading 99% busy while pulling 250&nbsp;GB/s and one
+      pulling 400&nbsp;GB/s are different machines having very different days.</p>
+    <p>llama.cpp and vLLM both publish Prometheus metrics, so anyone can read their real
+      throughput. On Apple Silicon the fast path is MLX — and <code>mlx_lm</code> computes
+      throughput internally on every single request, then discards it. Anything watching
+      from outside has to infer it.</p>
+
+    <div class="callout">
+      <p style="margin:0"><strong>You can infer it, up to a point.</strong> Read bandwidth
+      divided by weight-set size gives the decode rate. On a 27B 8-bit model on an M5 Max
+      that predicted <span class="num">8.97</span> tok/s against <span class="num">8.70</span>
+      measured — within 3%. But the moment a second request shared the GPU, the same estimate
+      read <span class="num">~10.3</span> against <span class="num">8.73</span> actual.</p>
+      <p style="margin:10px 0 0">Excellent in isolation, 18% high under load. Fine for a
+      dashboard glance; not something to benchmark against, tune a batch size with, or pick
+      a quantisation level on.</p>
+    </div>
+
+    <p>So expose the number instead of guessing it. The measurement happens inside the token
+      stream, where it is simply a fact rather than an inference.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>What it measures</h2>
+    <table>
+      <tr><th>Metric</th><th>Meaning</th></tr>
+      <tr><td><code>mlx:decode_tokens_per_second</code></td><td>In-flight throughput; falls back to recent history when idle</td></tr>
+      <tr><td><code>mlx:live_decode_tokens_per_second</code></td><td>Requests generating right now, summed</td></tr>
+      <tr><td><code>mlx:last_time_to_first_token_seconds</code></td><td>Prompt processing plus queue wait</td></tr>
+      <tr><td><code>mlx:last_prompt_tokens_per_second</code></td><td>Prefill throughput</td></tr>
+      <tr><td><code>mlx:cached_prompt_tokens_total</code></td><td>Prompt tokens the cache served</td></tr>
+      <tr><td><code>mlx:tokens_generated_total</code></td><td>Cumulative counter</td></tr>
+      <tr><td><code>mlx:requests_active</code></td><td>Generating or queued right now</td></tr>
+      <tr><td><code>mlx:memory_active_bytes</code></td><td>MLX allocator, plus peak and cache</td></tr>
+    </table>
+    <p class="muted" style="font-size:14px;margin-top:16px">The decode rate deliberately
+      excludes prompt processing and queue time: tokens produced divided by the time spent
+      producing them. Verified against wall-clock timing — a request taking 5.46&nbsp;s
+      end-to-end with 0.36&nbsp;s to first token reported 31.2&nbsp;tok/s, exactly
+      <code>159 ÷ 5.10</code>.</p>
+    <p class="muted" style="font-size:14px"><code>/stats</code> returns the same figures as
+      JSON, plus the last ten requests individually.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>The machine underneath</h2>
+<pre class="term"><span class="prompt">$</span> dyno top
+
+<span class="w">Apple M5 Max</span> · 40-core GPU · 128 GB unified · 18-core CPU
+
+GPU busy         <span class="w">95.9%</span>  @ 526 MHz
+GPU power        <span class="w">7.2 W</span>
+GPU memory       <span class="w">33.9 GB</span> of 107.5 GB (31.5%), headroom <span class="g">73.6 GB</span>
+System memory    60.3 GB of 128.0 GB  (wired 36.9 GB, swap 0 B)
+DRAM power       10.3 W        SoC power  19.5 W
+System power     50.5 W of 94 W adapter
+Memory bandwidth <span class="w">281 GB/s</span> (read 264, write 17)
+
+Processes:
+   5857  <span class="w">mlx_lm.server</span>   MLX    27.2 GB    36%  GPU</pre>
+
+    <div class="cols" style="margin-top:26px">
+      <div class="card">
+        <h4>No sudo, ever</h4>
+        <p>Most Apple Silicon monitors shell out to <code>powermetrics</code>, which needs
+        root. This reads the same counters one level down through IOReport, IOKit and Metal.</p>
+      </div>
+      <div class="card">
+        <h4>The real memory ceiling</h4>
+        <p>GPU memory is shown against Metal's <code>recommendedMaxWorkingSetSize</code> —
+        the actual limit for weights plus KV cache, not total RAM.</p>
+      </div>
+      <div class="card">
+        <h4>Bandwidth, not just utilisation</h4>
+        <p>DRAM read and write throughput, because that is what predicts tokens per second
+        on a unified-memory machine.</p>
+      </div>
+      <div class="card">
+        <h4>Other runtimes too</h4>
+        <p>llama.cpp, vLLM, Ollama and LM Studio are detected by the ports they listen on,
+        with measured throughput wherever they report it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>The app</h2>
+    <p>A native Swift menu bar app — no Python, no Dock icon, no window to manage. It shows
+      live tokens/sec in the menu bar, starts and supervises model servers, and stops them
+      when you quit so a model is never left holding tens of gigabytes.</p>
+    <p class="muted" style="font-size:14px">Idle cost: about 3% of one core and a flat
+      80&nbsp;MB.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <a href="https://github.com/canivel/mlx-dyno">github.com/canivel/mlx-dyno</a>
+    &nbsp;·&nbsp; MIT &nbsp;·&nbsp; requires macOS on Apple Silicon
+  </div>
+</footer>
+
+</body>
+</html>

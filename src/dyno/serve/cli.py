@@ -1,4 +1,4 @@
-"""`mlxserve` entry point.
+"""`dyno serve` entry point.
 
 This is not a fork of `mlx_lm.server`. It imports it, swaps two classes for
 instrumented subclasses, and hands control back -- so every flag, and every
@@ -14,13 +14,22 @@ from typing import Any
 
 from .instrument import InstrumentedAPIHandler, InstrumentedResponseGenerator, registry
 
-__version__ = "0.1.0"
+from .. import __version__
 
 BANNER = """\
-mlxserve {version}  ·  MLX inference with exportable metrics
+MLX Dyno {version}  ·  serving with live metrics
   OpenAI API   http://{host}:{port}/v1
   Metrics      http://{host}:{port}/metrics   (Prometheus)
   Stats        http://{host}:{port}/stats     (JSON)
+"""
+
+
+MLX_MISSING = """\
+`dyno serve` needs MLX, which is not installed.
+
+    pip install 'mlx-dyno[serve]'
+
+`dyno top` works without it.
 """
 
 
@@ -41,7 +50,7 @@ def _patch(server_module: Any) -> None:
         raise UnsupportedMLXLM(
             "This mlx_lm build is missing "
             + ", ".join(missing)
-            + ". mlxserve needs mlx-lm >= 0.28; upgrade with `pip install -U mlx-lm`."
+            + ". MLX Dyno needs mlx-lm >= 0.28; upgrade with `pip install -U mlx-lm`."
         )
 
     # `run()` looks this up on the module at call time, so replacing it works.
@@ -93,18 +102,11 @@ def _announce(argv: list[str]) -> None:
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
 
-    if "--version" in argv:
-        print(f"mlxserve {__version__}")
-        return 0
-
     try:
         import mlx_lm.server as server_module
-    except ImportError as error:
-        print(
-            "mlxserve needs mlx-lm. Install it with `pip install mlx-lm`.",
-            file=sys.stderr,
-        )
-        raise SystemExit(1) from error
+    except ImportError:
+        print(MLX_MISSING, file=sys.stderr, end="")
+        return 1
 
     try:
         _patch(server_module)
@@ -116,11 +118,11 @@ def main(argv: list[str] | None = None) -> int:
         _announce(argv)
 
     # mlx_lm's main() reads sys.argv directly.
-    sys.argv = [sys.argv[0]] + argv
+    sys.argv = [sys.argv[0] + " serve"] + argv
     try:
         server_module.main()
     except KeyboardInterrupt:
-        return 0
+        pass
     return 0
 
 

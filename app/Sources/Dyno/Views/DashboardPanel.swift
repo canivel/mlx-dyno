@@ -1,4 +1,4 @@
-import MLXStationKit
+import DynoKit
 import ServiceManagement
 import SwiftUI
 
@@ -201,7 +201,7 @@ struct DashboardPanel: View {
         VStack(alignment: .leading, spacing: 6) {
             SectionLabel(title: "Serve a model", trailing: serverStatusText)
 
-            if model.mlxservePath == nil {
+            if model.dynoPath == nil {
                 setupHint
             } else {
                 switch model.serverState {
@@ -279,9 +279,9 @@ struct DashboardPanel: View {
 
     private var setupHint: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text("mlxserve not found — install it to run models from here:")
+            Text("dyno not found — install it to run models from here:")
                 .font(.system(size: 10)).foregroundStyle(.secondary)
-            Text("uv venv ~/.mlxserve/venv && uv pip install --python ~/.mlxserve/venv/bin/python mlxserve")
+            Text("uv venv ~/.mlx-dyno/venv && uv pip install --python ~/.mlx-dyno/venv/bin/python 'mlx-dyno[serve]'")
                 .font(.system(size: 9, design: .monospaced))
                 .foregroundStyle(.tertiary)
                 .textSelection(.enabled)

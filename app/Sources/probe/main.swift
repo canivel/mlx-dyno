@@ -3,7 +3,7 @@
 //   swift build -c release --product probe
 //   ./.build/release/probe [extra-model-folder ...]
 import Foundation
-import MLXStationKit
+import DynoKit
 
 let extraFolders = Array(CommandLine.arguments.dropFirst())
 
@@ -14,7 +14,7 @@ await sampler.refreshModels(processes: snapshot.processes)
 let info = sampler.system
 print("\(info.chip) · \(info.gpuCores ?? 0)-core GPU · "
       + "\(Format.bytes(info.totalMemory, precision: 0)) unified · macOS \(info.macOSVersion)")
-print("mlxserve: \(ServerController.findExecutable() ?? "not found")")
+print("dyno CLI: \(ServerController.findExecutable() ?? "not found")")
 
 let models = ModelLibrary.scan(extraPaths: extraFolders)
 print("\nModels on disk (\(models.count)):")

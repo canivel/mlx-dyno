@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 @main
-struct MLXStationApp: App {
+struct DynoApp: App {
     @State private var model = MonitorModel()
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 

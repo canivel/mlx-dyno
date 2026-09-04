@@ -1,4 +1,4 @@
-import MLXStationKit
+import DynoKit
 import SwiftUI
 
 /// The status item itself. Kept to fixed-width digits so the menu bar does not

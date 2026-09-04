@@ -1,4 +1,4 @@
-import MLXStationKit
+import DynoKit
 import SwiftUI
 
 /// Thresholds shared by every gauge, so a colour means the same thing wherever

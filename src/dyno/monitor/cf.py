@@ -1,6 +1,6 @@
 """Minimal ctypes bridge to CoreFoundation, IOKit and Metal.
 
-Everything gpumon reads is available to an unprivileged user through these three
+Everything dyno reads is available to an unprivileged user through these three
 system libraries, which is why the tool never needs sudo. Keeping the bridge in
 one module means the rest of the codebase deals in plain Python objects.
 """

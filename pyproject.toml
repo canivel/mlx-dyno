@@ -3,26 +3,33 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "gpumon-mlx"
+name = "mlx-dyno"
 version = "0.1.0"
-description = "GPU, power and unified-memory monitor for local LLM workloads on Apple Silicon"
+description = "Real metrics for local LLMs on Apple Silicon: an MLX server that reports its own throughput, and a monitor for the machine underneath"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-keywords = ["apple-silicon", "gpu", "monitor", "llm", "mlx", "llama.cpp", "ollama", "metal"]
+keywords = [
+  "mlx", "apple-silicon", "macos", "llm", "inference", "server",
+  "metrics", "prometheus", "observability", "local-llm",
+]
 classifiers = [
   "Environment :: Console",
   "Operating System :: MacOS :: MacOS X",
   "Programming Language :: Python :: 3",
   "Topic :: System :: Monitoring",
 ]
+# `dyno top` needs nothing heavy. MLX is only required to serve a model.
 dependencies = ["rich>=13.7"]
 
+[project.optional-dependencies]
+serve = ["mlx-lm>=0.28"]
+
 [project.scripts]
-gpumon = "gpumon.cli:main"
+dyno = "dyno.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/canivel/mlx-serve"
+Homepage = "https://github.com/canivel/mlx-dyno"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/gpumon"]
+packages = ["src/dyno"]
