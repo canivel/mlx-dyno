@@ -71,6 +71,9 @@ final class MonitorModel {
         label: "com.canivel.dyno.sampler", qos: .utility
     )
     @ObservationIgnored private var isSampling = false
+    /// Called after every sample. The status item's title is AppKit, not
+    /// SwiftUI, so it needs a nudge rather than observation.
+    @ObservationIgnored var onUpdate: (() -> Void)?
     @ObservationIgnored private var lastModelRefresh: Date = .distantPast
     /// Model discovery does loopback HTTP, so it runs far less often than the
     /// counter reads.
@@ -258,6 +261,7 @@ final class MonitorModel {
                 self.snapshot = snapshot
                 self.history.push(snapshot)
                 self.isSampling = false
+                self.onUpdate?()
             }
         }
 

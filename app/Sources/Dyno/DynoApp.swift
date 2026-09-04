@@ -4,7 +4,6 @@ import SwiftUI
 @main
 struct DynoApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-    private var model: MonitorModel { MonitorModel.shared }
 
     init() {
         // Support hatches: inspect what the app resolved, or render its UI,
@@ -19,23 +18,20 @@ struct DynoApp: App {
         }
     }
 
+    /// The interface is the status item and the window, both AppKit-managed.
+    /// This scene exists because an App needs one; it is never shown.
     var body: some Scene {
-        // The label is kept a plain, non-interactive view: anything that makes
-        // it an interactive hierarchy can swallow the click that opens the menu.
-        MenuBarExtra {
-            DashboardPanel(model: model)
-        } label: {
-            MenuBarLabel(model: model)
-        }
-        .menuBarExtraStyle(.window)
+        Settings { EmptyView() }
     }
 }
 
-/// Owns the window and stops any model server on quit, so exiting never leaves
-/// a process holding tens of gigabytes of unified memory.
+/// Owns the menu bar item and the window, and stops any model server on quit so
+/// exiting never leaves a process holding tens of gigabytes of unified memory.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     static private(set) var shared: AppDelegate?
+
+    private var statusItem: StatusItemController?
     private lazy var windowController = MainWindowController(model: MonitorModel.shared)
 
     func showMainWindow() {
@@ -45,17 +41,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     nonisolated func applicationDidFinishLaunching(_ notification: Notification) {
         MainActor.assumeIsolated {
             AppDelegate.shared = self
+            // Menu bar only until a window is opened.
+            NSApp.setActivationPolicy(.accessory)
+            statusItem = StatusItemController(model: MonitorModel.shared)
 
             // A menu bar app with no window is easy to install and then fail to
-            // find, so show it once on the very first launch. Deferred a beat so
-            // the status item is in place first.
+            // find, so show it once on the very first launch.
             let defaults = UserDefaults.standard
             guard !defaults.bool(forKey: Defaults.hasLaunchedBefore) else { return }
             defaults.set(true, forKey: Defaults.hasLaunchedBefore)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
                 MainActor.assumeIsolated { AppDelegate.shared?.showMainWindow() }
             }
         }
+    }
+
+    /// Clicking the app in the Dock or Finder while it is already running.
+    nonisolated func applicationShouldHandleReopen(
+        _ sender: NSApplication, hasVisibleWindows: Bool
+    ) -> Bool {
+        MainActor.assumeIsolated { showMainWindow() }
+        return true
     }
 
     nonisolated func applicationWillTerminate(_ notification: Notification) {

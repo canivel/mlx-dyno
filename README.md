@@ -66,8 +66,8 @@ open /Applications/Dyno.app
 That is the whole install. **Python and MLX ship inside the app**, so there is
 nothing to `pip install` and no terminal needed afterwards.
 
-Dyno lives in the menu bar — no Dock icon. On first launch it opens its window;
-after that, click the menu bar icon and choose **Open Dyno**.
+Dyno lives in the menu bar — no Dock icon. **Click the menu bar icon to open
+the app**; right-click it for a summary without leaving what you are doing.
 
 ## Run a model
 
