@@ -43,6 +43,8 @@ final class MonitorModel {
         Array(Set([8970, routerPort])).sorted()
     }
     @ObservationIgnored private let routerClient = RouterClient()
+    @ObservationIgnored private let routerController = RouterController()
+    private(set) var routerState: RouterController.State = .stopped
     @ObservationIgnored private var lastRouterPoll: Date = .distantPast
 
     // -- catalog -------------------------------------------------------------
@@ -66,6 +68,8 @@ final class MonitorModel {
             UserDefaults.standard.set(data, forKey: Defaults.launchOptions)
         }
     }
+    /// Set to ask the window to show chat; the window clears it once handled.
+    var wantsChat = false
     /// Set to ask the window to switch tabs; the window clears it once handled.
     /// Chat needs to send you to Run when nothing is loaded.
     var requestedTab: MainWindow.Tab?
@@ -159,6 +163,9 @@ final class MonitorModel {
                 }
             }
         }
+        routerController.onStateChange = { [weak self] state in
+            Task { @MainActor in self?.routerState = state }
+        }
         rescanModels()
         loadCatalog()
         start()
@@ -232,6 +239,25 @@ final class MonitorModel {
         }
     }
 
+    // MARK: - Router
+
+    func startRouter() { routerController.start(port: routerPort) }
+    func stopRouter() { routerController.stop() }
+    var routerLog: String { routerController.log }
+
+    /// Change the router's policy while it is serving.
+    func updateRouter(_ changes: [String: Any]) {
+        let client = routerClient
+        Task { @MainActor [weak self] in
+            _ = await client.update(changes)
+            self?.router = await client.fetch()
+        }
+    }
+
+    func setRouterRules(_ rules: [RouterConfig.Rule]) {
+        updateRouter(["rules": rules.map(\.payloadForUpdate)])
+    }
+
     func download(_ model: CatalogModel) { downloader.download(model.id) }
     func cancelDownload(_ model: CatalogModel) { downloader.cancel(model.id) }
     func dismissDownload(_ repository: String) { downloader.clear(repository) }
@@ -273,6 +299,7 @@ final class MonitorModel {
     /// Called when the app quits so a model server is never left orphaned.
     func shutdown() {
         conversations.saveNow()
+        routerController.stop()
         server.stop()
         stop()
     }

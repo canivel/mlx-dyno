@@ -10,10 +10,14 @@ struct MainWindow: View {
     var model: MonitorModel
 
     @State private var tab: Tab
+    /// Chat is a mode rather than a tab: it is reached from its own button and
+    /// leaves the tab you were on selected, so going back lands where you were.
+    @State private var showingChat = false
 
-    init(model: MonitorModel, initialTab: Tab = .run) {
+    init(model: MonitorModel, initialTab: Tab = .run, chat: Bool = false) {
         self.model = model
         _tab = State(initialValue: initialTab)
+        _showingChat = State(initialValue: chat)
     }
 
     enum Tab: String, CaseIterable, Identifiable {
@@ -29,12 +33,19 @@ struct MainWindow: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Picker("", selection: $tab) {
+                Picker("", selection: Binding(
+                    get: { tab },
+                    set: { newTab in
+                        tab = newTab
+                        showingChat = false
+                    }
+                )) {
                     ForEach(Tab.allCases) { Text($0.rawValue).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
                 .frame(width: 340)
+                .opacity(showingChat ? 0.55 : 1)
                 Spacer()
                 if case let .running(name, port) = model.serverState {
                     HStack(spacing: 5) {
@@ -51,30 +62,63 @@ struct MainWindow: View {
                 // together. Coloured explicitly: .borderedProminent goes grey
                 // whenever the window is not key.
                 Button {
-                    AppDelegate.shared?.toggleChatWindow()
+                    withAnimation(.easeInOut(duration: 0.12)) { showingChat.toggle() }
                 } label: {
                     HStack(spacing: 6) {
-                        Image(systemName: "bubble.left.and.text.bubble.right")
+                        Image(systemName: showingChat
+                              ? "chevron.left" : "bubble.left.and.text.bubble.right")
                             .font(.system(size: 12, weight: .semibold))
-                        Text("Chat").font(.system(size: 12.5, weight: .semibold))
+                        Text(showingChat ? "Back" : "Chat")
+                            .font(.system(size: 12.5, weight: .semibold))
                     }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(showingChat ? Color.accentColor : .white)
                     .padding(.horizontal, 14).padding(.vertical, 7)
                     .background(
                         RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.accentColor)
-                            .shadow(color: Color.accentColor.opacity(0.35), radius: 5, y: 1)
+                            .fill(showingChat
+                                  ? Color.accentColor.opacity(0.15) : Color.accentColor)
+                            .shadow(color: Color.accentColor.opacity(showingChat ? 0 : 0.35),
+                                    radius: 5, y: 1)
                     )
                     .contentShape(RoundedRectangle(cornerRadius: 8))
                 }
                 .buttonStyle(.plain)
                 .keyboardShortcut("j", modifiers: .command)
-                .help("Open the chat window (⌘J)")
+                .help(showingChat ? "Back to the dashboard (⌘J)" : "Chat with a model (⌘J)")
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             Divider()
 
+            if showingChat {
+                ChatView(model: model)
+            } else {
+                dashboard
+            }
+        }
+        .frame(minWidth: 800, minHeight: 540)
+        .background(Color(nsColor: .windowBackgroundColor))
+        // One view asking to show another — Chat sending you to Models when
+        // nothing is loaded — goes through the model rather than reaching into
+        // this view's state directly.
+        .onChange(of: model.requestedTab) { _, requested in
+            if let requested {
+                tab = requested
+                showingChat = false
+                model.requestedTab = nil
+            }
+        }
+        .onChange(of: model.wantsChat) { _, wanted in
+            if wanted {
+                showingChat = true
+                model.wantsChat = false
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var dashboard: some View {
+        Group {
             switch tab {
             case .router:
                 RouterView(model: model)
@@ -91,14 +135,6 @@ struct MainWindow: View {
             case .discover:
                 DiscoverView(model: model)
             }
-        }
-        .frame(minWidth: 800, minHeight: 540)
-        .background(Color(nsColor: .windowBackgroundColor))
-        // One view asking to show another — Chat sending you to Run when
-        // nothing is loaded — goes through the model rather than reaching into
-        // this view's state directly.
-        .onChange(of: model.requestedTab) { _, requested in
-            if let requested { tab = requested; model.requestedTab = nil }
         }
     }
 }

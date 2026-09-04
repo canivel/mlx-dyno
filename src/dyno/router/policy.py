@@ -53,7 +53,19 @@ class Rule:
     longer_than: int | None = None
     shorter_than: int | None = None
 
+    enabled: bool = True
+
+    def describe(self) -> dict[str, Any]:
+        return {
+            "name": self.name, "tier": self.tier, "model": self.model,
+            "contains": self.contains, "matches": self.matches,
+            "longer_than": self.longer_than, "shorter_than": self.shorter_than,
+            "enabled": self.enabled,
+        }
+
     def applies(self, prompt: str) -> bool:
+        if not self.enabled:
+            return False
         if self.contains and self.contains.lower() not in prompt.lower():
             return False
         if self.matches and not re.search(self.matches, prompt, re.I):
@@ -78,6 +90,7 @@ class Rule:
             matches=raw.get("matches"),
             longer_than=raw.get("longer_than"),
             shorter_than=raw.get("shorter_than"),
+            enabled=raw.get("enabled", True),
         )
 
 
@@ -165,6 +178,37 @@ class Policy:
         self.use_cost_model = use_cost_model
         # conversation key -> (tier, when it was decided)
         self._tags: dict[str, tuple[Tier, float]] = {}
+
+    # -- configuration ------------------------------------------------------
+
+    def describe(self) -> dict[str, Any]:
+        return {
+            "escalate_below": self.escalate_below,
+            "expected_tokens": self.expected_tokens,
+            "self_routing": self.self_routing,
+            "use_cost_model": self.use_cost_model,
+            "rules": [rule.describe() for rule in self.rules],
+            "tagged_conversations": len(self._tags),
+        }
+
+    def update(self, changes: dict[str, Any]) -> None:
+        """Apply a partial configuration change.
+
+        Everything here can change while the router is serving: a policy you
+        must restart to adjust is one nobody adjusts.
+        """
+        if "escalate_below" in changes:
+            self.escalate_below = max(0.0, min(1.0, float(changes["escalate_below"])))
+        if "expected_tokens" in changes:
+            self.expected_tokens = max(16, int(changes["expected_tokens"]))
+        if "self_routing" in changes:
+            self.self_routing = bool(changes["self_routing"])
+        if "use_cost_model" in changes:
+            self.use_cost_model = bool(changes["use_cost_model"])
+        if "rules" in changes:
+            self.rules = [Rule.from_dict(entry) for entry in changes["rules"] or []]
+        if changes.get("forget_tags"):
+            self._tags.clear()
 
     # -- tags ---------------------------------------------------------------
 

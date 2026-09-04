@@ -11,11 +11,14 @@ struct RouterView: View {
 
     private var snapshot: RouterClient.Snapshot { model.router }
 
+    @State private var showingSettings = false
+
     var body: some View {
         if snapshot.isReachable {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     header
+                    if showingSettings { settings }
                     backends
                     decisions
                 }
@@ -24,6 +27,137 @@ struct RouterView: View {
         } else {
             notRunning
         }
+    }
+
+    // MARK: - Policy
+
+    private var settings: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeading("Policy", trailing: "applies immediately, no restart")
+
+            HStack(spacing: 22) {
+                Toggle(isOn: binding(\.selfRouting) { ["self_routing": $0] }) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("Self-routing").font(.system(size: 11))
+                        Text("strongest model tags the conversation")
+                            .font(.system(size: 9)).foregroundStyle(.tertiary)
+                    }
+                }
+                Toggle(isOn: binding(\.useCostModel) { ["use_cost_model": $0] }) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("Cost model").font(.system(size: 11))
+                        Text("fastest model clearing the tier")
+                            .font(.system(size: 9)).foregroundStyle(.tertiary)
+                    }
+                }
+                Spacer()
+            }
+            .toggleStyle(.switch).controlSize(.mini)
+
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack {
+                        Text("Escalate below").font(.system(size: 11))
+                        Text(config.escalateBelow <= 0
+                             ? "off"
+                             : String(format: "%.2f", config.escalateBelow))
+                            .font(.system(size: 11, weight: .medium)).monospacedDigit()
+                    }
+                    Text("retry on a stronger model when its own token probability drops")
+                        .font(.system(size: 9)).foregroundStyle(.tertiary)
+                }
+                Slider(
+                    value: Binding(
+                        get: { config.escalateBelow },
+                        set: { model.updateRouter(["escalate_below": $0]) }
+                    ),
+                    in: 0...0.98
+                )
+                .controlSize(.mini).frame(width: 190)
+            }
+
+            HStack(spacing: 8) {
+                Text("Assume replies of").font(.system(size: 11))
+                Text("\(config.expectedTokens)").font(.system(size: 11, weight: .medium))
+                    .monospacedDigit()
+                Text("tokens when comparing models").font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                Stepper("", value: Binding(
+                    get: { config.expectedTokens },
+                    set: { model.updateRouter(["expected_tokens": $0]) }
+                ), in: 32...4096, step: 100)
+                .labelsHidden().controlSize(.mini)
+                Spacer()
+            }
+
+            rules
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.04)))
+    }
+
+    private var config: RouterConfig { snapshot.config }
+
+    private func binding(
+        _ path: KeyPath<RouterConfig, Bool>, _ change: @escaping (Bool) -> [String: Any]
+    ) -> Binding<Bool> {
+        Binding(
+            get: { config[keyPath: path] },
+            set: { model.updateRouter(change($0)) }
+        )
+    }
+
+    private var rules: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("RULES").font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.tertiary).tracking(0.7)
+                Text("checked first, in order")
+                    .font(.system(size: 9)).foregroundStyle(.tertiary)
+                Spacer()
+                Button("Add") { addRule() }.controlSize(.mini)
+            }
+            if config.rules.isEmpty {
+                Text("No rules. Routing falls to self-routing and the cost model.")
+                    .font(.system(size: 10)).foregroundStyle(.tertiary)
+            }
+            ForEach(config.rules) { rule in
+                HStack(spacing: 8) {
+                    Toggle("", isOn: Binding(
+                        get: { rule.enabled },
+                        set: { enabled in
+                            var updated = config.rules
+                            if let index = updated.firstIndex(where: { $0.name == rule.name }) {
+                                updated[index].enabled = enabled
+                                model.setRouterRules(updated)
+                            }
+                        }
+                    ))
+                    .labelsHidden().toggleStyle(.switch).controlSize(.mini)
+                    Text(rule.name).font(.system(size: 11, weight: .medium))
+                    Text(rule.summary).font(.system(size: 10)).foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        model.setRouterRules(config.rules.filter { $0.name != rule.name })
+                    } label: {
+                        Image(systemName: "trash").font(.system(size: 9))
+                    }
+                    .buttonStyle(.plain).foregroundStyle(.tertiary)
+                }
+            }
+        }
+    }
+
+    /// A starting point rather than a blank form: the common rule is "send
+    /// anything that looks like code to the biggest model".
+    private func addRule() {
+        var updated = config.rules
+        updated.append(RouterConfig.Rule(
+            name: "rule \(updated.count + 1)",
+            tier: "hard",
+            matches: "(refactor|debug|stack trace|traceback)"
+        ))
+        model.setRouterRules(updated)
     }
 
     private var notRunning: some View {
@@ -44,8 +178,27 @@ struct RouterView: View {
                 .padding(.top, 4)
             Text("Then point any OpenAI client at 127.0.0.1:8970 with model \"auto\".")
                 .font(.system(size: 10)).foregroundStyle(.tertiary)
+
+            switch model.routerState {
+            case .launching:
+                ProgressView().controlSize(.small).padding(.top, 6)
+            case let .failed(message):
+                Text(message).font(.system(size: 10)).foregroundStyle(.orange)
+                    .padding(.top, 4)
+                startButton
+            default:
+                startButton
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var startButton: some View {
+        Button("Start the router") { model.startRouter() }
+            .controlSize(.large)
+            .buttonStyle(.borderedProminent)
+            .disabled(Runtime.current == nil)
+            .padding(.top, 6)
     }
 
     private var header: some View {
@@ -55,6 +208,16 @@ struct RouterView: View {
             stat(String(format: "%.0fs", snapshot.secondsSaved), "saved",
                  detail: "versus the slowest candidate")
             Spacer()
+            Button {
+                withAnimation(.easeInOut(duration: 0.12)) { showingSettings.toggle() }
+            } label: {
+                Label("Policy", systemImage: "slider.horizontal.3").font(.system(size: 11))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(showingSettings ? Color.accentColor : .secondary)
+            if case .running = model.routerState {
+                Button("Stop") { model.stopRouter() }.controlSize(.small)
+            }
         }
     }
 

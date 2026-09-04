@@ -193,6 +193,8 @@ class RouterHandler(BaseHTTPRequestHandler):
                     for b in state.backends()
                 ],
             })
+        elif path == "/config":
+            self._send_json(state.policy.describe())
         elif path == "/metrics":
             self._send_text(self._prometheus(), "text/plain; version=0.0.4")
         else:
@@ -214,8 +216,27 @@ class RouterHandler(BaseHTTPRequestHandler):
 
     # -- POST ---------------------------------------------------------------
 
+    def do_OPTIONS(self) -> None:
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
+
     def do_POST(self) -> None:
         path = self.path.split("?", 1)[0]
+
+        if path == "/config":
+            length = int(self.headers.get("Content-Length") or 0)
+            try:
+                changes = json.loads(self.rfile.read(length) or b"{}")
+            except ValueError:
+                self._send_json({"error": "invalid JSON"}, status=400)
+                return
+            self.state.policy.update(changes)
+            self._send_json(self.state.policy.describe())
+            return
+
         if path not in ("/v1/chat/completions", "/v1/completions"):
             self._send_json({"error": "not found"}, status=404)
             return

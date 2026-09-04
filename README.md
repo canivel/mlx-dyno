@@ -72,8 +72,8 @@ the app**; right-click it for a summary without leaving what you are doing.
 ## Using it
 
 Four tabs — **Models**, **Router**, **Performance**, **Discover** — and a
-**Chat** button at the top right that opens chat in its own window, so a
-conversation and the router's decisions can be watched at the same time (⌘J).
+**Chat** button at the top right (⌘J) that swaps the view for the conversation
+and back again, leaving whichever tab you were on selected.
 
 **Chat** — conversations on the left, the thread in the middle. Every reply
 carries the tokens/sec and time to first token that produced it, read from the
@@ -131,6 +131,17 @@ Four mechanisms, in the order they get a say:
 Every decision is recorded with the candidates it rejected and why, visible in
 the Router tab or at `/routes`. A router you cannot interrogate is one you end
 up switching off.
+
+The policy is editable while it runs, from the Router tab or over HTTP — each
+mechanism can be switched off, the escalation threshold moved, and rules added
+or disabled. A policy you must restart to adjust is one nobody adjusts.
+
+```sh
+curl localhost:8970/config
+curl -X POST localhost:8970/config -H 'Content-Type: application/json' \
+  -d '{"escalate_below":0.68,"rules":[
+        {"name":"code goes big","matches":"(refactor|debug|stack trace)","tier":"hard"}]}'
+```
 
 ```
 14:22:07  "Prove the halting problem is undecidable…"    8.6s

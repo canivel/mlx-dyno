@@ -130,7 +130,7 @@ struct DashboardPanel: View {
                 Label("Open Dyno", systemImage: "macwindow").font(.system(size: 11))
             }
             Button {
-                AppDelegate.shared?.toggleChatWindow()
+                AppDelegate.shared?.showChat()
             } label: {
                 Label("Chat", systemImage: "bubble.left.and.text.bubble.right")
                     .font(.system(size: 11))
