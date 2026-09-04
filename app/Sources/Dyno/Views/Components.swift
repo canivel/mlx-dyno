@@ -68,7 +68,7 @@ struct Sparkline: View {
                 }
                 .fill(
                     LinearGradient(
-                        colors: [color.opacity(0.30), color.opacity(0.02)],
+                        colors: [color.opacity(0.20), color.opacity(0.01)],
                         startPoint: .top,
                         endPoint: .bottom
                     )

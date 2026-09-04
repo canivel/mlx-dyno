@@ -10,6 +10,11 @@ import SwiftUI
 @Observable
 @MainActor
 final class MonitorModel {
+    /// One instance for the whole app. The SwiftUI scene and the AppKit window
+    /// controller both need it, and the delegate is constructed before any view
+    /// exists, so passing it down from a view does not work.
+    static let shared = MonitorModel()
+
     private(set) var system = SystemInfo()
     private(set) var snapshot = Snapshot()
     private(set) var history = History()

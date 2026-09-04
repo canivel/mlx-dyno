@@ -42,6 +42,17 @@ enum ViewSnapshot {
             ("dark", .darkAqua), ("light", .aqua),
         ]
 
+        // The popover is presented at whatever height the content asks for;
+        // measure it unconstrained to be sure it fits on a screen.
+        let probe = NSHostingView(rootView: AnyView(DashboardPanel(model: model)))
+        probe.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+        let natural = probe.fittingSize
+        let visibleHeight = NSScreen.main?.visibleFrame.height ?? 0
+        print(String(format: "  panel natural height: %.0f pt (screen allows %.0f pt)%@",
+                     natural.height, visibleHeight,
+                     natural.height > visibleHeight ? "  ** TOO TALL **" : ""))
+
         var wrote = 0
         for (name, view, size) in targets {
             for (suffix, appearance) in appearances {
@@ -76,7 +87,15 @@ enum ViewSnapshot {
     private static func capture(
         view: AnyView, size: CGSize, appearance: NSAppearance.Name, to path: String
     ) -> Bool {
-        let hosting = NSHostingView(rootView: view.frame(width: size.width, height: size.height))
+        // The AppKit appearance and the SwiftUI colour scheme have to be set
+        // together. Setting only the former leaves SwiftUI drawing light text
+        // onto a window AppKit painted light, which comes out blank.
+        let isDark = appearance == .darkAqua
+        let rooted = view
+            .environment(\.colorScheme, isDark ? .dark : .light)
+            .background(Color(nsColor: .windowBackgroundColor))
+            .frame(width: size.width, height: size.height)
+        let hosting = NSHostingView(rootView: AnyView(rooted))
         hosting.frame = CGRect(origin: .zero, size: size)
 
         let window = NSWindow(
@@ -85,6 +104,10 @@ enum ViewSnapshot {
             backing: .buffered,
             defer: false
         )
+        // Set it application-wide: a per-window appearance does not reach
+        // views AppKit hosts separately, such as a ScrollView's clip view,
+        // which then renders light text on a light background.
+        NSApp.appearance = NSAppearance(named: appearance)
         window.appearance = NSAppearance(named: appearance)
         hosting.appearance = NSAppearance(named: appearance)
         window.contentView = hosting
@@ -94,6 +117,8 @@ enum ViewSnapshot {
         window.orderBack(nil)
 
         hosting.layoutSubtreeIfNeeded()
+        print("    [\((path as NSString).lastPathComponent)] natural size: "
+              + "\(Int(hosting.fittingSize.width))x\(Int(hosting.fittingSize.height))")
         // Give SwiftUI a couple of runloop turns to settle its layout.
         RunLoop.main.run(until: Date().addingTimeInterval(0.6))
         hosting.layoutSubtreeIfNeeded()

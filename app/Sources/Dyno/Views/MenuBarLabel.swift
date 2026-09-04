@@ -6,7 +6,6 @@ import SwiftUI
 /// jitter as numbers change.
 struct MenuBarLabel: View {
     var model: MonitorModel
-    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         HStack(spacing: 4) {
@@ -17,15 +16,6 @@ struct MenuBarLabel: View {
                     .font(.system(size: 11, weight: .medium))
                     .monospacedDigit()
             }
-        }
-        .task {
-            // A menu bar app with no window is easy to install and then fail to
-            // find. Show the window once, the first time it is ever launched.
-            let defaults = UserDefaults.standard
-            guard !defaults.bool(forKey: Defaults.hasLaunchedBefore) else { return }
-            defaults.set(true, forKey: Defaults.hasLaunchedBefore)
-            openWindow(id: WindowID.main)
-            NSApp.activate(ignoringOtherApps: true)
         }
     }
 

@@ -6,12 +6,20 @@ import SwiftUI
 struct DashboardPanel: View {
     var model: MonitorModel
     @State private var showingSettings = false
-    @Environment(\.openWindow) private var openWindow
 
     private var snapshot: Snapshot { model.snapshot }
     private var system: SystemInfo { model.system }
 
     var body: some View {
+        ScrollView {
+            content
+        }
+        .frame(width: 340)
+        .frame(maxHeight: maximumHeight)
+        .scrollBounceBehavior(.basedOnSize)
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
 
@@ -48,6 +56,12 @@ struct DashboardPanel: View {
         }
         .padding(14)
         .frame(width: 340)
+    }
+
+    /// A popover taller than the screen cannot be presented, and this panel
+    /// grows with the number of models, processes and warnings.
+    private var maximumHeight: CGFloat {
+        max((NSScreen.main?.visibleFrame.height ?? 800) - 40, 400)
     }
 
     // MARK: - Sections
@@ -488,8 +502,7 @@ struct DashboardPanel: View {
             if showingSettings { settings }
             HStack(spacing: 10) {
                 Button {
-                    openWindow(id: WindowID.main)
-                    NSApp.activate(ignoringOtherApps: true)
+                    AppDelegate.shared?.showMainWindow()
                 } label: {
                     Label("Open Dyno", systemImage: "macwindow")
                         .font(.system(size: 11))
