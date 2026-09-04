@@ -33,6 +33,21 @@ final class MonitorModel {
     private(set) var isSearching = false
     private(set) var downloads: [String: DownloadManager.Progress] = [:]
     var searchText: String = ""
+
+    // -- chat -----------------------------------------------------------------
+    let conversations = ConversationStore()
+    var generationOptions = GenerationOptions.default {
+        didSet { persistGenerationOptions() }
+    }
+    var showThinking = true {
+        didSet { UserDefaults.standard.set(showThinking, forKey: Defaults.showThinking) }
+    }
+    var launchOptions = LaunchOptions.default {
+        didSet {
+            guard let data = try? JSONEncoder().encode(launchOptions) else { return }
+            UserDefaults.standard.set(data, forKey: Defaults.launchOptions)
+        }
+    }
     /// Set to ask the window to switch tabs; the window clears it once handled.
     /// Chat needs to send you to Run when nothing is loaded.
     var requestedTab: MainWindow.Tab?
@@ -91,6 +106,15 @@ final class MonitorModel {
         ) ?? .gpuAndPower
 
         modelFolders = defaults.stringArray(forKey: Defaults.modelFolders) ?? []
+        showThinking = defaults.object(forKey: Defaults.showThinking) as? Bool ?? true
+        if let data = defaults.data(forKey: Defaults.generationOptions),
+           let decoded = try? JSONDecoder().decode(GenerationOptions.self, from: data) {
+            generationOptions = decoded
+        }
+        if let data = defaults.data(forKey: Defaults.launchOptions),
+           let decoded = try? JSONDecoder().decode(LaunchOptions.self, from: data) {
+            launchOptions = decoded
+        }
 
         let override = defaults.double(forKey: Defaults.peakBandwidth)
         let sampler = Sampler(peakBandwidthOverride: override > 0 ? override : nil)
@@ -215,7 +239,10 @@ final class MonitorModel {
     func startSelectedModel() {
         guard let model = selectedModel else { return }
         let port = UInt16(UserDefaults.standard.integer(forKey: Defaults.serverPort))
-        server.start(model: model, port: port == 0 ? 8971 : port)
+        server.start(
+            model: model, port: port == 0 ? 8971 : port,
+            extraArguments: launchOptions.arguments
+        )
     }
 
     func stopServer() {
@@ -224,6 +251,7 @@ final class MonitorModel {
 
     /// Called when the app quits so a model server is never left orphaned.
     func shutdown() {
+        conversations.saveNow()
         server.stop()
         stop()
     }
@@ -272,6 +300,11 @@ final class MonitorModel {
                 await sampler.refreshModels(processes: processes)
             }
         }
+    }
+
+    private func persistGenerationOptions() {
+        guard let data = try? JSONEncoder().encode(generationOptions) else { return }
+        UserDefaults.standard.set(data, forKey: Defaults.generationOptions)
     }
 
     func resetHistory() {

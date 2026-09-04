@@ -30,12 +30,14 @@ enum ViewSnapshot {
         // Built lazily: constructing every view up front would run each one's
         // initialiser before the first capture.
         let targets: [(String, () -> AnyView, CGSize)] = [
-            ("window-run", { AnyView(MainWindow(model: model, initialTab: .run)) },
-             CGSize(width: 900, height: 580)),
             ("window-chat", { AnyView(MainWindow(model: model, initialTab: .chat)) },
-             CGSize(width: 900, height: 580)),
+             CGSize(width: 980, height: 620)),
+            ("window-run", { AnyView(MainWindow(model: model, initialTab: .run)) },
+             CGSize(width: 980, height: 620)),
+            ("window-observe", { AnyView(MainWindow(model: model, initialTab: .observe)) },
+             CGSize(width: 980, height: 700)),
             ("window-discover", { AnyView(MainWindow(model: model, initialTab: .discover)) },
-             CGSize(width: 900, height: 580)),
+             CGSize(width: 980, height: 620)),
             ("menu-panel", { AnyView(DashboardPanel(model: model)) },
              CGSize(width: 320, height: 330)),
         ]

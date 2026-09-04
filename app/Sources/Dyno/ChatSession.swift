@@ -2,68 +2,112 @@ import DynoKit
 import Foundation
 import Observation
 
-/// One turn in the conversation.
-struct ChatMessage: Identifiable, Equatable {
-    enum Role: String { case user, assistant }
+/// Per-request generation settings.
+///
+/// These go in the request body rather than the server's launch flags, so they
+/// can change between messages without reloading the model.
+struct GenerationOptions: Codable, Equatable {
+    var temperature: Double = 0.7
+    var topP: Double = 1.0
+    var topK: Int = 0
+    var maxTokens: Int = 2048
+    var repetitionPenalty: Double = 1.0
+    var seed: Int?
+    /// Reasoning models can be asked to skip thinking. Sent as
+    /// `chat_template_kwargs.enable_thinking`, which is what the Qwen and
+    /// DeepSeek templates read.
+    var enableThinking = true
 
-    let id = UUID()
-    var role: Role
-    var text: String
-    var isStreaming = false
-    /// Filled in when the turn finishes, from the server's own metrics.
-    var tokensPerSecond: Double?
-    var timeToFirstToken: Double?
+    static let `default` = GenerationOptions()
+
+    /// Only non-default values are sent, so the server's own defaults win where
+    /// nothing was chosen here.
+    func body(model: String, messages: [[String: String]], stream: Bool) -> [String: Any] {
+        var payload: [String: Any] = [
+            "model": model,
+            "messages": messages,
+            "stream": stream,
+            "max_tokens": maxTokens,
+            "temperature": temperature,
+        ]
+        if topP < 1.0 { payload["top_p"] = topP }
+        if topK > 0 { payload["top_k"] = topK }
+        if repetitionPenalty != 1.0 { payload["repetition_penalty"] = repetitionPenalty }
+        if let seed { payload["seed"] = seed }
+        if !enableThinking {
+            payload["chat_template_kwargs"] = ["enable_thinking": false]
+        }
+        return payload
+    }
 }
 
-/// Talks to the running model over its OpenAI-compatible endpoint.
-///
-/// Streaming rather than waiting for the whole reply: the point of running a
-/// model locally is watching it produce tokens, and time-to-first-token is only
-/// visible if the first token is shown when it arrives.
+/// Streams a reply from a running model into a conversation.
 @Observable
 @MainActor
 final class ChatSession {
-    private(set) var messages: [ChatMessage] = []
     private(set) var isGenerating = false
     private(set) var error: String?
 
     @ObservationIgnored private var task: Task<Void, Never>?
 
-    var isEmpty: Bool { messages.isEmpty }
-
-    func clear() {
-        stop()
-        messages = []
-        error = nil
-    }
-
     func stop() {
         task?.cancel()
         task = nil
         isGenerating = false
-        if let index = messages.indices.last, messages[index].isStreaming {
-            messages[index].isStreaming = false
-        }
     }
 
-    func send(_ text: String, modelID: String, port: UInt16) {
-        let prompt = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !prompt.isEmpty, !isGenerating else { return }
+    /// Append the prompt and stream the answer, mutating `conversation`
+    /// in place through `onChange` so the store can persist as it goes.
+    func send(
+        prompt: String,
+        conversation: Conversation,
+        modelID: String,
+        modelName: String,
+        port: UInt16,
+        options: GenerationOptions,
+        onChange: @escaping (Conversation) -> Void
+    ) {
+        let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !isGenerating else { return }
 
         error = nil
-        messages.append(ChatMessage(role: .user, text: prompt))
-        messages.append(ChatMessage(role: .assistant, text: "", isStreaming: true))
+        var working = conversation
+        working.messages.append(ChatMessage(role: .user, text: trimmed))
+        working.messages.append(ChatMessage(
+            role: .assistant, text: "", isStreaming: true, modelName: modelName
+        ))
+        working.lastModelID = modelID
+        onChange(working)
         isGenerating = true
 
-        let history = messages.dropLast().map {
+        // History excludes the placeholder we just added for the answer.
+        let history = working.messages.dropLast().map {
             ["role": $0.role.rawValue, "content": $0.text]
         }
-        task = Task { await stream(history: Array(history), modelID: modelID, port: port) }
+
+        task = Task { [weak self] in
+            await self?.stream(
+                history: Array(history), conversation: working, modelID: modelID,
+                port: port, options: options, onChange: onChange
+            )
+        }
     }
 
-    private func stream(history: [[String: String]], modelID: String, port: UInt16) async {
+    private func stream(
+        history: [[String: String]],
+        conversation: Conversation,
+        modelID: String,
+        port: UInt16,
+        options: GenerationOptions,
+        onChange: @escaping (Conversation) -> Void
+    ) async {
+        var working = conversation
         let started = Date()
         var firstTokenAt: Date?
+
+        func lastIndex() -> Int? {
+            working.messages.indices.last
+        }
 
         do {
             var request = URLRequest(
@@ -71,13 +115,10 @@ final class ChatSession {
             )
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.timeoutInterval = 600
-            request.httpBody = try JSONSerialization.data(withJSONObject: [
-                "model": modelID,
-                "messages": history,
-                "stream": true,
-                "max_tokens": 2048,
-            ])
+            request.timeoutInterval = 900
+            request.httpBody = try JSONSerialization.data(
+                withJSONObject: options.body(model: modelID, messages: history, stream: true)
+            )
 
             let (bytes, response) = try await URLSession.shared.bytes(for: request)
             guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
@@ -86,63 +127,69 @@ final class ChatSession {
 
             for try await line in bytes.lines {
                 if Task.isCancelled { break }
-                // Server-sent events: payload lines are prefixed, others are
-                // keepalives or blanks.
                 guard line.hasPrefix("data:") else { continue }
                 let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
                 if payload == "[DONE]" { break }
                 guard let data = payload.data(using: .utf8),
-                      let json = try? JSONSerialization.jsonObject(with: data)
-                        as? [String: Any],
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                       let choices = json["choices"] as? [[String: Any]],
-                      let delta = choices.first?["delta"] as? [String: Any],
-                      let chunk = delta["content"] as? String, !chunk.isEmpty
+                      let delta = choices.first?["delta"] as? [String: Any]
                 else { continue }
 
-                if firstTokenAt == nil { firstTokenAt = Date() }
-                if let index = messages.indices.last {
-                    messages[index].text += chunk
+                guard let index = lastIndex() else { break }
+                // mlx_lm reports thinking in its own field, so it never has to
+                // be cut out of the answer afterwards.
+                if let reasoning = delta["reasoning"] as? String, !reasoning.isEmpty {
+                    if firstTokenAt == nil { firstTokenAt = Date() }
+                    working.messages[index].reasoning += reasoning
+                    onChange(working)
+                }
+                if let chunk = delta["content"] as? String, !chunk.isEmpty {
+                    if firstTokenAt == nil { firstTokenAt = Date() }
+                    working.messages[index].text += chunk
+                    onChange(working)
                 }
             }
         } catch is CancellationError {
             // Stopping is not an error.
         } catch {
-            self.error = describe(error)
+            self.error = (error as? ChatError)?.message ?? error.localizedDescription
         }
 
-        if let index = messages.indices.last {
-            messages[index].isStreaming = false
-            messages[index].timeToFirstToken = firstTokenAt.map { $0.timeIntervalSince(started) }
-            // Prefer the server's own figure; it excludes queue and prefill.
-            messages[index].tokensPerSecond = await measuredRate(port: port)
-            if messages[index].text.isEmpty && self.error == nil {
-                messages[index].text = "(no output)"
+        if let index = lastIndex() {
+            working.messages[index].isStreaming = false
+            working.messages[index].timeToFirstToken =
+                firstTokenAt.map { $0.timeIntervalSince(started) }
+            working.messages[index].tokensPerSecond = await measuredRate(port: port)
+            if working.messages[index].text.isEmpty,
+               !working.messages[index].hasReasoning,
+               self.error == nil {
+                working.messages[index].text = "(no output)"
             }
         }
+        onChange(working)
         isGenerating = false
         task = nil
     }
 
+    /// The server's own figure, which excludes queue time and prefill.
     private func measuredRate(port: UInt16) async -> Double? {
-        let url = URL(string: "http://127.0.0.1:\(port)/stats")!
-        guard let (data, _) = try? await URLSession.shared.data(from: url),
+        guard let url = URL(string: "http://127.0.0.1:\(port)/stats"),
+              let (data, _) = try? await URLSession.shared.data(from: url),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let live = json["live"] as? [String: Any]
         else { return nil }
         return (live["last_decode_tokens_per_second"] as? NSNumber)?.doubleValue
     }
 
-    private func describe(_ error: Error) -> String {
-        if let chat = error as? ChatError { return chat.message }
-        return error.localizedDescription
-    }
-
     enum ChatError: Error {
         case server(Int)
-
         var message: String {
             switch self {
-            case let .server(code): return "The model server replied with HTTP \(code)."
+            case let .server(code):
+                return code == 404
+                    ? "The server does not have that model loaded."
+                    : "The model server replied with HTTP \(code)."
             }
         }
     }

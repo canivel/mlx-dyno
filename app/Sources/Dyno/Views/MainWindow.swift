@@ -11,14 +11,15 @@ struct MainWindow: View {
 
     @State private var tab: Tab
 
-    init(model: MonitorModel, initialTab: Tab = .run) {
+    init(model: MonitorModel, initialTab: Tab = .chat) {
         self.model = model
         _tab = State(initialValue: initialTab)
     }
 
     enum Tab: String, CaseIterable, Identifiable {
-        case run = "Run"
         case chat = "Chat"
+        case run = "Models"
+        case observe = "Performance"
         case discover = "Discover"
         var id: String { rawValue }
     }
@@ -33,7 +34,7 @@ struct MainWindow: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(width: 260)
+                .frame(width: 340)
                 Spacer()
                 if case let .running(name, port) = model.serverState {
                     HStack(spacing: 5) {
@@ -51,6 +52,8 @@ struct MainWindow: View {
             switch tab {
             case .chat:
                 ChatView(model: model)
+            case .observe:
+                ObservabilityView(model: model)
             case .run:
                 HStack(spacing: 0) {
                     ModelSidebar(model: model)
@@ -188,6 +191,7 @@ private struct ModelRow: View {
 
 private struct RunPanel: View {
     var model: MonitorModel
+    @State private var showingOptions = false
 
     private var snapshot: Snapshot { model.snapshot }
     /// The served model matching what we started, if the server is up.
@@ -202,6 +206,7 @@ private struct RunPanel: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 controls
+                launchOptions
                 if let served, served.stats != nil || served.tokensPerSecond != nil {
                     throughput(served)
                 } else {
@@ -264,6 +269,86 @@ private struct RunPanel: View {
             guard model.runtime != nil else { return "No Python runtime found — reinstall Dyno" }
             guard let selected = model.selectedModel else { return "Pick a model on the left" }
             return "\(Format.bytes(selected.sizeBytes)) · ready to start"
+        }
+    }
+
+    /// Server flags. Collapsed by default — most runs want the defaults, and
+    /// changing one of these means restarting the model.
+    @ViewBuilder
+    private var launchOptions: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.12)) { showingOptions.toggle() }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: showingOptions ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 8))
+                    Text("LAUNCH OPTIONS")
+                        .font(.system(size: 10, weight: .semibold)).tracking(0.7)
+                    Text(model.launchOptions.summary)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1).truncationMode(.tail)
+                    Spacer()
+                }
+                .foregroundStyle(.tertiary)
+            }
+            .buttonStyle(.plain)
+
+            if showingOptions {
+                let options = Binding(
+                    get: { model.launchOptions }, set: { model.launchOptions = $0 }
+                )
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 20) {
+                        number("Max tokens", options.maxTokens, 128...131_072, 512)
+                        number("Prompt cache", options.promptCacheSize, 0...200, 5)
+                        number("Decode concurrency", options.decodeConcurrency, 1...16, 1)
+                        number("Prompt concurrency", options.promptConcurrency, 1...16, 1)
+                    }
+                    HStack(spacing: 20) {
+                        decimal("Temperature", options.temperature, 0...2)
+                        decimal("Top-p", options.topP, 0.05...1)
+                        number("Top-k", options.topK, 0...200, 5)
+                        Toggle("Trust remote code", isOn: options.trustRemoteCode)
+                            .toggleStyle(.switch).controlSize(.mini)
+                    }
+                    if case .running = model.serverState {
+                        Text("Restart the model for changes to take effect.")
+                            .font(.system(size: 10)).foregroundStyle(.orange)
+                    }
+                }
+                .font(.system(size: 11))
+                .padding(12)
+                .background(RoundedRectangle(cornerRadius: 9)
+                    .fill(Color.primary.opacity(0.035)))
+            }
+        }
+    }
+
+    private func number(
+        _ label: String, _ value: Binding<Int>, _ range: ClosedRange<Int>, _ step: Int
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(label).font(.system(size: 9)).foregroundStyle(.secondary)
+            HStack(spacing: 4) {
+                Text("\(value.wrappedValue)").monospacedDigit()
+                Stepper("", value: value, in: range, step: step)
+                    .labelsHidden().controlSize(.mini)
+            }
+        }
+    }
+
+    private func decimal(
+        _ label: String, _ value: Binding<Double>, _ range: ClosedRange<Double>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(label).font(.system(size: 9)).foregroundStyle(.secondary)
+            HStack(spacing: 5) {
+                Text(String(format: "%.2f", value.wrappedValue)).monospacedDigit()
+                    .frame(width: 34, alignment: .leading)
+                Slider(value: value, in: range).controlSize(.mini).frame(width: 78)
+            }
         }
     }
 
@@ -373,26 +458,6 @@ private struct RunPanel: View {
 }
 
 // MARK: - Small pieces
-
-private struct SectionHeading: View {
-    var title: String
-    var trailing: String?
-    init(_ title: String, trailing: String? = nil) {
-        self.title = title
-        self.trailing = trailing
-    }
-    var body: some View {
-        HStack {
-            Text(title.uppercased())
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.tertiary).tracking(0.7)
-            Spacer()
-            if let trailing {
-                Text(trailing).font(.system(size: 10)).foregroundStyle(.tertiary)
-            }
-        }
-    }
-}
 
 private struct BigStat: View {
     var value: String

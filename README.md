@@ -69,13 +69,31 @@ nothing to `pip install` and no terminal needed afterwards.
 Dyno lives in the menu bar — no Dock icon. **Click the menu bar icon to open
 the app**; right-click it for a summary without leaving what you are doing.
 
-## Run a model
+## Using it
 
-1. **Discover** tab → search or browse → **Download**. Size and precision are on
-   every row, and anything too big for your Mac's GPU budget is flagged.
-2. **Run** tab → pick it in the sidebar → **Start**.
-3. You now have an OpenAI-compatible endpoint on `127.0.0.1:8971`, with measured
-   throughput above the machine meters that explain it.
+Four tabs:
+
+**Chat** — conversations on the left, the thread in the middle. Every reply
+carries the tokens/sec and time to first token that produced it, read from the
+server's counters rather than timed from outside. Reasoning models show their
+thinking in a collapsible block, because mlx_lm reports it in its own field
+rather than inline. The model picker at the top means a conversation can be
+continued on a different model, and conversations are saved to disk.
+
+**Models** — your library, with **Start**. Launch options are one disclosure
+away: max tokens, prompt-cache size, decode and prompt concurrency, sampling
+defaults, speculative decoding. Only settings you actually change are passed, so
+untouched ones stay whatever mlx_lm considers correct.
+
+**Performance** — GPU load, tokens/sec, memory bandwidth, GPU power, GPU memory
+and wall power charted over time, with the server's own counters (requests,
+tokens, TTFT, prefill rate, prompt-cache hit rate) and the processes competing
+for the GPU.
+
+**Discover** — search the Hugging Face hub and download in one click.
+
+Under it all, an OpenAI-compatible endpoint on `127.0.0.1:8971` that any client
+can point at.
 
 Point any OpenAI client at it:
 

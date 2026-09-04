@@ -33,6 +33,9 @@ enum Defaults {
     static let modelFolders = "modelFolders"
     static let serverPort = "serverPort"
     static let hasLaunchedBefore = "hasLaunchedBefore"
+    static let showThinking = "showThinking"
+    static let generationOptions = "generationOptions"
+    static let launchOptions = "launchOptions"
 
     static func register() {
         UserDefaults.standard.register(defaults: [
