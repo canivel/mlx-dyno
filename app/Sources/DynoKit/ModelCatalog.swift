@@ -35,12 +35,15 @@ public enum ModelCatalog {
 
     /// How the hub should order results.
     public enum Sort: String, Sendable, CaseIterable, Identifiable {
+        /// Most downloaded. The default: a freshly created repository has no
+        /// downloads and no likes yet, so ordering by date shows a column of
+        /// zeroes and gives nothing to choose on.
+        case popular
+        case liked
         /// Newest repositories first — what "just released" means on the hub.
         case recent
         /// Recently re-uploaded or fixed.
         case updated
-        case popular
-        case liked
 
         public var id: String { rawValue }
 
@@ -94,13 +97,13 @@ public enum ModelCatalog {
     }
 
     public static func featured(
-        sort: Sort = .recent, limit: Int = 50
+        sort: Sort = .popular, limit: Int = 50
     ) async throws -> [CatalogModel] {
         try await fetch(query: nil, sort: sort, limit: limit)
     }
 
     public static func search(
-        _ query: String, sort: Sort = .recent, limit: Int = 50
+        _ query: String, sort: Sort = .popular, limit: Int = 50
     ) async throws -> [CatalogModel] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         return try await fetch(query: trimmed.isEmpty ? nil : trimmed, sort: sort, limit: limit)

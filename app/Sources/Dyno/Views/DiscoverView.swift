@@ -136,7 +136,14 @@ private struct CatalogRow: View {
                     if let released = candidate.createdAt {
                         Text("· \(Self.relative(released))")
                     }
-                    Text("· \(formatted(candidate.downloads)) downloads")
+                    // A brand-new repository has no downloads and no likes;
+                    // printing "0 downloads" on every row is noise, not data.
+                    if candidate.downloads > 0 {
+                        Text("· \(formatted(candidate.downloads)) downloads")
+                    }
+                    if candidate.likes > 0 {
+                        Text("· ♥ \(candidate.likes)")
+                    }
                 }
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)

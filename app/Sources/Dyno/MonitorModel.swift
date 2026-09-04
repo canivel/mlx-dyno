@@ -36,7 +36,7 @@ final class MonitorModel {
     /// Set to ask the window to switch tabs; the window clears it once handled.
     /// Chat needs to send you to Run when nothing is loaded.
     var requestedTab: MainWindow.Tab?
-    var catalogSort: ModelCatalog.Sort = .recent {
+    var catalogSort: ModelCatalog.Sort = .popular {
         didSet { runSearch(query: searchText) }
     }
 
