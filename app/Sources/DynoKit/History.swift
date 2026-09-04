@@ -31,6 +31,7 @@ public struct History: Sendable {
     public var bandwidth = Series()
     public var gpuMemory = Series()
     public var systemPower = Series()
+    public var tokenRate = Series()
 
     public init() {}
 
@@ -41,6 +42,16 @@ public struct History: Sendable {
         bandwidth.push(snapshot.bandwidth.totalGBps)
         gpuMemory.push(snapshot.memory.gpuUsed.map(Double.init))
         systemPower.push(snapshot.power.systemWatts)
+        // Only a real rate belongs on the throughput chart; an idle server
+        // should read zero rather than leave a gap.
+        let rate = snapshot.models.first.flatMap { model -> Double? in
+            switch model.rateSource {
+            case .measured, .estimated: return model.tokensPerSecond
+            case .idle: return 0
+            case .unavailable: return nil
+            }
+        }
+        tokenRate.push(rate ?? tokenRate.latest ?? 0)
     }
 
     public mutating func reset() { self = History() }

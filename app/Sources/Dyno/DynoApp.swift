@@ -6,6 +6,15 @@ struct DynoApp: App {
     @State private var model = MonitorModel()
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
+    init() {
+        // A support hatch: run the app binary from a terminal to see what it
+        // resolved, without having to read the UI.
+        let arguments = CommandLine.arguments
+        if arguments.contains("--diagnose") {
+            exit(Diagnose.run(arguments: Array(arguments.dropFirst())))
+        }
+    }
+
     var body: some Scene {
         MenuBarExtra {
             DashboardPanel(model: model)
@@ -14,7 +23,21 @@ struct DynoApp: App {
             MenuBarLabel(model: model)
         }
         .menuBarExtraStyle(.window)
+
+        Window("Dyno", id: WindowID.main) {
+            MainWindow(model: model)
+                // The app lives in the menu bar, so it has no Dock icon until
+                // a window is open; without this the window cannot take focus.
+                .onAppear { NSApp.setActivationPolicy(.regular) }
+                .onDisappear { NSApp.setActivationPolicy(.accessory) }
+        }
+        .defaultSize(width: 900, height: 580)
+        .windowResizability(.contentMinSize)
     }
+}
+
+enum WindowID {
+    static let main = "dyno-main"
 }
 
 /// Stops any model server the app started, so quitting never leaves a process

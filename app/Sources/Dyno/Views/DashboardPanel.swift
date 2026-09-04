@@ -6,6 +6,7 @@ import SwiftUI
 struct DashboardPanel: View {
     var model: MonitorModel
     @State private var showingSettings = false
+    @Environment(\.openWindow) private var openWindow
 
     private var snapshot: Snapshot { model.snapshot }
     private var system: SystemInfo { model.system }
@@ -201,7 +202,7 @@ struct DashboardPanel: View {
         VStack(alignment: .leading, spacing: 6) {
             SectionLabel(title: "Serve a model", trailing: serverStatusText)
 
-            if model.dynoPath == nil {
+            if model.runtime == nil {
                 setupHint
             } else {
                 switch model.serverState {
@@ -486,6 +487,13 @@ struct DashboardPanel: View {
         VStack(alignment: .leading, spacing: 8) {
             if showingSettings { settings }
             HStack(spacing: 10) {
+                Button {
+                    openWindow(id: WindowID.main)
+                    NSApp.activate(ignoringOtherApps: true)
+                } label: {
+                    Label("Open Dyno", systemImage: "macwindow")
+                        .font(.system(size: 11))
+                }
                 Button {
                     withAnimation(.easeInOut(duration: 0.12)) { showingSettings.toggle() }
                 } label: {

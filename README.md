@@ -49,23 +49,44 @@ token stream, where it is simply a fact rather than an inference.
 
 ## Install
 
-```sh
-# the server and CLI
-uv venv ~/.mlx-dyno/venv
-uv pip install --python ~/.mlx-dyno/venv/bin/python 'mlx-dyno[serve]'
+Download `Dyno.app`, drag it to Applications, open it. That is the whole
+install — **Python and MLX ship inside the app**, so there is nothing else to
+set up and no terminal involved.
 
-# the menu bar app
+Building it yourself needs Xcode's Swift toolchain and [uv](https://docs.astral.sh/uv/)
+(which supplies the bundled Python):
+
+```sh
 git clone https://github.com/canivel/mlx-dyno && cd mlx-dyno/app
-./build.sh && cp -r build/Dyno.app /Applications/
+./build.sh
+cp -r build/Dyno.app /Applications/
 open /Applications/Dyno.app
 ```
 
-The app looks for the `dyno` CLI at `~/.mlx-dyno/venv/bin/dyno`, then on `PATH`,
-so that install location needs no configuration. It is menu-bar only — no Dock
-icon, no window.
+The result is a ~390 MB self-contained bundle: the Swift app, a relocatable
+Python runtime, MLX and `mlx-dyno`. On first launch it opens its window, finds
+the models already on your disk, and you press Start.
 
-Monitoring alone needs neither MLX nor the app: `pip install mlx-dyno` gives you
-`dyno top` with `rich` as its only dependency.
+<details>
+<summary>Working on the app itself</summary>
+
+`./build.sh --slim` skips the runtime for a fast rebuild. A slim build has no
+Python inside it and falls back to a `dyno` CLI on your `PATH`.
+
+`Dyno.app/Contents/MacOS/Dyno --diagnose [folder…]` prints which runtime the app
+resolved and which models it can see; add `--start` to actually launch the first
+one. It is the quickest way to find out why a model will not start.
+
+</details>
+
+### Just the command line
+
+The Python half also stands alone, for scripting or a headless box:
+
+```sh
+uv tool install 'mlx-dyno[serve]'    # dyno serve + dyno top
+uv tool install mlx-dyno             # dyno top only, rich is the sole dependency
+```
 
 ## Serving a model
 
@@ -80,10 +101,15 @@ MLX Dyno 0.1.0  ·  serving with live metrics
   Stats        http://127.0.0.1:8971/stats     (JSON)
 ```
 
-Or click the menu bar icon, pick a model and press **Start**. Models are found
-in the Hugging Face cache, the LM Studio cache and `~/models`; add your own
-folder under Settings. The app supervises the server and stops it when you quit,
-so a model is never left holding tens of gigabytes.
+Or just use the app: pick a model in the window and press **Start**. Models are
+found in the Hugging Face cache, the LM Studio cache and `~/models`; add your own
+folder with the button in the sidebar. The app supervises the server and stops it
+when you quit, so a model is never left holding tens of gigabytes.
+
+The window shows measured throughput — tokens/sec, time to first token, prefill
+rate, prompt-cache hit rate, active requests — above the GPU, memory, bandwidth
+and power meters that explain those numbers. The menu bar item stays as the
+glanceable version.
 
 Either way the app finds it, because it discovers servers by looking up the TCP
 ports each LLM process is listening on — no default-port assumptions.
@@ -167,7 +193,8 @@ dyno top --csv run.csv -i 0.5  # log a benchmark run
 
 The app *is* native — all of it. GPU residency, power rails, memory, bandwidth,
 process scanning, model discovery, server supervision and the entire UI are
-Swift, with no Python anywhere near them.
+Swift, with no Python anywhere near them. And you never install Python yourself:
+it lives inside the app bundle, the same way Ollama ships its own runtime.
 
 The inference server is Python because that is where MLX's model support lives.
 `mlx_lm` ships 119 model files — Llama 4, DeepSeek V3.2, Gemma 4, GLM-4, Qwen,

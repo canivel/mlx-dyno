@@ -1,7 +1,12 @@
 import Foundation
 
 /// Composes the individual collectors into one `Snapshot` per interval.
-public final class Sampler {
+///
+/// Marked `@unchecked Sendable` deliberately, and only two entry points may be
+/// used concurrently: `sample()` must stay on one queue, while
+/// `refreshModels(processes:)` touches nothing but the lock-protected
+/// `ModelMonitor` and is safe to call from anywhere.
+public final class Sampler: @unchecked Sendable {
     public let system: SystemInfo
 
     private let gpuStatsGroups: [IOReportSubscription.Group] = [

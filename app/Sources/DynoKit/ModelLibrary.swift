@@ -95,7 +95,7 @@ public enum ModelLibrary {
     /// A Hugging Face snapshot directory is named after a commit hash, so walk
     /// back up to the `models--org--name` entry for something readable.
     private static func displayName(for path: String) -> String {
-        var components = (path as NSString).pathComponents
+        let components = (path as NSString).pathComponents
         if let index = components.lastIndex(where: { $0.hasPrefix("models--") }) {
             let raw = components[index].dropFirst("models--".count)
             return raw.replacingOccurrences(of: "--", with: "/")

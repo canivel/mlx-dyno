@@ -23,32 +23,6 @@ public final class ServerController: @unchecked Sendable {
         }
     }
 
-    /// Where the `dyno` CLI might be, most specific first.
-    public static func executableCandidates(configured: String?) -> [String] {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        return [
-            configured,
-            "\(home)/.mlx-dyno/venv/bin/dyno",
-            "/opt/homebrew/bin/dyno",
-            "/usr/local/bin/dyno",
-        ].compactMap { $0 }
-    }
-
-    public static func findExecutable(configured: String? = nil) -> String? {
-        let manager = FileManager.default
-        for candidate in executableCandidates(configured: configured)
-        where manager.isExecutableFile(atPath: candidate) {
-            return candidate
-        }
-        // Fall back to PATH.
-        guard let path = ProcessInfo.processInfo.environment["PATH"] else { return nil }
-        for directory in path.split(separator: ":") {
-            let candidate = (String(directory) as NSString).appendingPathComponent("dyno")
-            if manager.isExecutableFile(atPath: candidate) { return candidate }
-        }
-        return nil
-    }
-
     private let lock = NSLock()
     private var process: Process?
     private var _state: State = .stopped
@@ -77,22 +51,29 @@ public final class ServerController: @unchecked Sendable {
         callback?(new)
     }
 
-    public func start(
-        executable: String, model: LocalModel, port: UInt16, extraArguments: [String] = []
-    ) {
+    public func start(model: LocalModel, port: UInt16, extraArguments: [String] = []) {
         stop()
-        setState(.launching(model: model.name))
-        lock.lock(); recentOutput = []; lock.unlock()
 
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: executable)
-        task.arguments = [
+        let serveArguments = [
             "serve",
             "--model", model.path,
             "--host", "127.0.0.1",
             "--port", String(port),
             "--log-level", "WARNING",
         ] + extraArguments
+
+        guard let invocation = Runtime.invocation(for: serveArguments) else {
+            setState(.failed("No Python runtime found. Reinstall Dyno."))
+            return
+        }
+
+        setState(.launching(model: model.name))
+        lock.lock(); recentOutput = []; lock.unlock()
+
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: invocation.executable)
+        task.arguments = invocation.arguments
+        task.environment = invocation.environment
 
         let pipe = Pipe()
         task.standardOutput = pipe
@@ -117,7 +98,7 @@ public final class ServerController: @unchecked Sendable {
         do {
             try task.run()
         } catch {
-            setState(.failed("Could not launch dyno: \(error.localizedDescription)"))
+            setState(.failed("Could not start the model server: \(error.localizedDescription)"))
             return
         }
 

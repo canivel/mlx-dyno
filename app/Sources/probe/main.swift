@@ -14,7 +14,7 @@ await sampler.refreshModels(processes: snapshot.processes)
 let info = sampler.system
 print("\(info.chip) · \(info.gpuCores ?? 0)-core GPU · "
       + "\(Format.bytes(info.totalMemory, precision: 0)) unified · macOS \(info.macOSVersion)")
-print("dyno CLI: \(ServerController.findExecutable() ?? "not found")")
+print("runtime: \(Runtime.current.map { "\($0)" } ?? "none found")")
 
 let models = ModelLibrary.scan(extraPaths: extraFolders)
 print("\nModels on disk (\(models.count)):")

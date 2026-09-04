@@ -32,6 +32,7 @@ enum Defaults {
     static let dynoPath = "dynoPath"
     static let modelFolders = "modelFolders"
     static let serverPort = "serverPort"
+    static let hasLaunchedBefore = "hasLaunchedBefore"
 
     static func register() {
         UserDefaults.standard.register(defaults: [
@@ -42,6 +43,7 @@ enum Defaults {
             modelFolders: [String](),
             // Away from 8080 and 1234, which other local servers commonly take.
             serverPort: 8971,
+            hasLaunchedBefore: false,
         ])
     }
 }

@@ -19,7 +19,7 @@ final class MonitorModel {
     // -- local model serving -------------------------------------------------
     private(set) var localModels: [LocalModel] = []
     private(set) var serverState: ServerController.State = .stopped
-    private(set) var dynoPath: String?
+    private(set) var runtime: Runtime.Kind?
     var selectedModel: LocalModel?
 
     var modelFolders: [String] {
@@ -73,10 +73,7 @@ final class MonitorModel {
             startupError = "Could not read the system telemetry counters. "
                 + "GPU Monitor needs an Apple Silicon Mac."
         }
-        let configured = defaults.string(forKey: Defaults.dynoPath)
-        dynoPath = ServerController.findExecutable(
-            configured: (configured?.isEmpty == false) ? configured : nil
-        )
+        runtime = Runtime.current
         server.onStateChange = { [weak self] state in
             Task { @MainActor in self?.serverState = state }
         }
@@ -106,9 +103,9 @@ final class MonitorModel {
     }
 
     func startSelectedModel() {
-        guard let executable = dynoPath, let model = selectedModel else { return }
+        guard let model = selectedModel else { return }
         let port = UInt16(UserDefaults.standard.integer(forKey: Defaults.serverPort))
-        server.start(executable: executable, model: model, port: port == 0 ? 8971 : port)
+        server.start(model: model, port: port == 0 ? 8971 : port)
     }
 
     func stopServer() {

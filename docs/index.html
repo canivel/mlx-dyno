@@ -118,15 +118,17 @@
 <section>
   <div class="wrap">
     <h2>Install</h2>
-<pre class="term"><span class="c"># the server + CLI</span>
-<span class="prompt">$</span> uv venv ~/.mlx-dyno/venv
-<span class="prompt">$</span> uv pip install --python ~/.mlx-dyno/venv/bin/python <span class="y">'mlx-dyno[serve]'</span>
+<pre class="term"><span class="c"># download Dyno.app, drag it to Applications, open it.</span>
+<span class="c"># Python and MLX are inside the app. Nothing else to install.</span>
 
-<span class="c"># the menu bar app</span>
+<span class="c"># or build it yourself:</span>
 <span class="prompt">$</span> git clone https://github.com/canivel/mlx-dyno &amp;&amp; cd mlx-dyno/app
-<span class="prompt">$</span> ./build.sh &amp;&amp; cp -r build/Dyno.app /Applications/</pre>
-    <p class="muted" style="font-size:14px">The app finds the CLI automatically, so that
-      install path needs no configuration.</p>
+<span class="prompt">$</span> ./build.sh
+<span class="prompt">$</span> cp -r build/Dyno.app /Applications/</pre>
+    <p class="muted" style="font-size:14px">A ~390&nbsp;MB self-contained bundle: the Swift
+      app, a relocatable Python runtime, MLX and the server. On first launch it opens its
+      window, finds the models already on your disk, and you press Start. The command line
+      also stands alone — <code>uv tool install 'mlx-dyno[serve]'</code>.</p>
   </div>
 </section>
 
@@ -258,9 +260,10 @@ Processes:
 <section>
   <div class="wrap">
     <h2>The app</h2>
-    <p>A native Swift menu bar app — no Python, no Dock icon, no window to manage. It shows
-      live tokens/sec in the menu bar, starts and supervises model servers, and stops them
-      when you quit so a model is never left holding tens of gigabytes.</p>
+    <p>A native Swift app with a window for working — pick a model, press Start, watch
+      measured throughput above the GPU, memory, bandwidth and power meters that explain it
+      — and a menu bar item for glancing. It starts and supervises model servers and stops
+      them when you quit, so a model is never left holding tens of gigabytes.</p>
     <p class="muted" style="font-size:14px">Idle cost: about 3% of one core and a flat
       80&nbsp;MB.</p>
   </div>
