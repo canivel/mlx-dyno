@@ -27,13 +27,17 @@ enum ViewSnapshot {
         let model = MonitorModel()
         waitForData(model)
 
-        let targets: [(String, AnyView, CGSize)] = [
-            ("window-run", AnyView(MainWindow(model: model, initialTab: .run)),
+        // Built lazily: constructing every view up front would run each one's
+        // initialiser before the first capture.
+        let targets: [(String, () -> AnyView, CGSize)] = [
+            ("window-run", { AnyView(MainWindow(model: model, initialTab: .run)) },
              CGSize(width: 900, height: 580)),
-            ("window-discover", AnyView(MainWindow(model: model, initialTab: .discover)),
+            ("window-chat", { AnyView(MainWindow(model: model, initialTab: .chat)) },
              CGSize(width: 900, height: 580)),
-            ("menu-panel", AnyView(DashboardPanel(model: model)),
-             CGSize(width: 340, height: 700)),
+            ("window-discover", { AnyView(MainWindow(model: model, initialTab: .discover)) },
+             CGSize(width: 900, height: 580)),
+            ("menu-panel", { AnyView(DashboardPanel(model: model)) },
+             CGSize(width: 320, height: 330)),
         ]
 
         // Both appearances: a colour that reads in one and vanishes in the
@@ -54,11 +58,11 @@ enum ViewSnapshot {
                      natural.height > visibleHeight ? "  ** TOO TALL **" : ""))
 
         var wrote = 0
-        for (name, view, size) in targets {
+        for (name, makeView, size) in targets {
             for (suffix, appearance) in appearances {
                 let path = (directory as NSString)
                     .appendingPathComponent("\(name)-\(suffix).png")
-                if capture(view: view, size: size, appearance: appearance, to: path) {
+                if capture(view: makeView(), size: size, appearance: appearance, to: path) {
                     wrote += 1
                 } else {
                     print("  FAILED \(name)-\(suffix)")

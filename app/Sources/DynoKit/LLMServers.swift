@@ -47,7 +47,14 @@ public struct ServerStats: Sendable, Equatable {
 /// A model loaded by a local inference server.
 public struct LLMModel: Sendable, Identifiable, Equatable {
     public var id: String
+    /// Display name, shortened for the UI.
     public var name: String
+    /// Exactly what the server was started with — a path or a repo id.
+    ///
+    /// This is what an API request must name. `/v1/models` cannot be used for
+    /// it: mlx_lm lists every model it *could* serve, so picking the first
+    /// entry can ask a server to unload a 27B model and load something else.
+    public var identifier: String = ""
     public var runtime: String
     public var pid: Int32
     public var port: UInt16?
@@ -142,6 +149,7 @@ public final class ModelMonitor: @unchecked Sendable {
                 discovered.append(LLMModel(
                     id: "\(process.pid)-\(name)",
                     name: Self.shortName(name),
+                    identifier: name,
                     runtime: process.runtime ?? "LLM",
                     pid: process.pid,
                     port: ports.first,
@@ -176,6 +184,7 @@ public final class ModelMonitor: @unchecked Sendable {
                     return LLMModel(
                         id: "\(key)-\(index)-\(name)",
                         name: Self.shortName(name),
+                        identifier: name,
                         runtime: "Ollama",
                         pid: process.pid,
                         port: port,
@@ -191,6 +200,7 @@ public final class ModelMonitor: @unchecked Sendable {
         var model = LLMModel(
             id: key,
             name: Self.shortName(name),
+            identifier: name,
             runtime: process.runtime ?? "LLM",
             pid: process.pid,
             port: port,

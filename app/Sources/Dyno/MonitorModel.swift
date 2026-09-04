@@ -33,6 +33,9 @@ final class MonitorModel {
     private(set) var isSearching = false
     private(set) var downloads: [String: DownloadManager.Progress] = [:]
     var searchText: String = ""
+    /// Set to ask the window to switch tabs; the window clears it once handled.
+    /// Chat needs to send you to Run when nothing is loaded.
+    var requestedTab: MainWindow.Tab?
     var catalogSort: ModelCatalog.Sort = .recent {
         didSet { runSearch(query: searchText) }
     }

@@ -1,31 +1,39 @@
 // Command-line harness for the metrics and catalog layers.
+//
+//   swift build -c release --product probe
+//   ./.build/release/probe [extra-model-folder ...]
 import Foundation
 import DynoKit
 
+let extraFolders = Array(CommandLine.arguments.dropFirst())
+let sampler = Sampler()
+var snapshot = sampler.sample()
+await sampler.refreshModels(processes: snapshot.processes)
+
+let info = sampler.system
+print("\(info.chip) · \(info.gpuCores ?? 0)-core GPU · "
+      + "\(Format.bytes(info.totalMemory, precision: 0)) unified · macOS \(info.macOSVersion)")
 print("runtime: \(Runtime.current.map { "\($0)" } ?? "none found")")
 
-for sort in [ModelCatalog.Sort.recent, .popular] {
-    print("\n=== \(sort.title) ===")
-    if let models = try? await ModelCatalog.featured(sort: sort, limit: 6) {
-        for m in models {
-            let created = m.createdAt.map { ISO8601DateFormatter().string(from: $0).prefix(10) } ?? "?"
-            print("  \(created)  \(m.id.prefix(52))  [\(m.quantization ?? "-")]\(m.isMultimodal ? " mm" : "")")
-        }
+let models = ModelLibrary.scan(extraPaths: extraFolders)
+print("\nModels on disk (\(models.count)):")
+for model in models {
+    print("  \(model.shortName)  \(Format.bytes(model.sizeBytes))  [\(model.source)]")
+}
+
+print("\nLive:")
+for round in 0..<5 {
+    try? await Task.sleep(nanoseconds: 1_000_000_000)
+    snapshot = sampler.sample()
+    if round % 3 == 0 { await sampler.refreshModels(processes: snapshot.processes) }
+    print(String(format: "  GPU %3.0f%% @ %4.0f MHz  %@  mem %@  DRAM %.0f GB/s",
+                 snapshot.gpu.busyPercent, snapshot.gpu.frequencyMHz ?? 0,
+                 Format.watts(snapshot.power.gpuWatts),
+                 Format.bytes(snapshot.memory.gpuUsed),
+                 snapshot.bandwidth.totalGBps ?? 0))
+    for served in snapshot.models {
+        let rate = served.tokensPerSecond.map { String(format: "%.1f", $0) } ?? "—"
+        print("    \(served.name) [\(served.runtime)] :\(served.port.map(String.init) ?? "-")"
+              + "  \(rate) tok/s (\(served.rateSource.rawValue))")
     }
-}
-
-print("\n=== search 'qwen3.8' (the case that was broken) ===")
-if let models = try? await ModelCatalog.search("qwen3.8", sort: .popular, limit: 8) {
-    for m in models { print("  \(m.id.prefix(56))  [\(m.quantization ?? "-")] \(m.pipeline ?? "-")") }
-}
-
-print("\n=== search 'gemma' ===")
-if let models = try? await ModelCatalog.search("gemma", sort: .popular, limit: 5) {
-    for m in models { print("  \(m.id.prefix(56))") }
-}
-
-print("\n=== speech models excluded? ===")
-if let models = try? await ModelCatalog.featured(sort: .popular, limit: 20) {
-    let bad = models.filter { ($0.pipeline ?? "").contains("speech") || ($0.pipeline ?? "").contains("audio") }
-    print("  \(models.count) results, \(bad.count) speech/audio (should be 0)")
 }

@@ -8,6 +8,7 @@ import SwiftUI
 /// metrics that explain the number.
 struct MainWindow: View {
     var model: MonitorModel
+
     @State private var tab: Tab
 
     init(model: MonitorModel, initialTab: Tab = .run) {
@@ -17,9 +18,12 @@ struct MainWindow: View {
 
     enum Tab: String, CaseIterable, Identifiable {
         case run = "Run"
+        case chat = "Chat"
         case discover = "Discover"
         var id: String { rawValue }
     }
+
+
 
     var body: some View {
         VStack(spacing: 0) {
@@ -29,7 +33,7 @@ struct MainWindow: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(width: 190)
+                .frame(width: 260)
                 Spacer()
                 if case let .running(name, port) = model.serverState {
                     HStack(spacing: 5) {
@@ -45,6 +49,8 @@ struct MainWindow: View {
             Divider()
 
             switch tab {
+            case .chat:
+                ChatView(model: model)
             case .run:
                 HStack(spacing: 0) {
                     ModelSidebar(model: model)
@@ -59,6 +65,12 @@ struct MainWindow: View {
         }
         .frame(minWidth: 800, minHeight: 540)
         .background(Color(nsColor: .windowBackgroundColor))
+        // One view asking to show another — Chat sending you to Run when
+        // nothing is loaded — goes through the model rather than reaching into
+        // this view's state directly.
+        .onChange(of: model.requestedTab) { _, requested in
+            if let requested { tab = requested; model.requestedTab = nil }
+        }
     }
 }
 
