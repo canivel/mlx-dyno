@@ -36,6 +36,8 @@ enum Defaults {
     static let showThinking = "showThinking"
     static let generationOptions = "generationOptions"
     static let launchOptions = "launchOptions"
+    static let useRouter = "useRouter"
+    static let routerPort = "routerPort"
 
     static func register() {
         UserDefaults.standard.register(defaults: [

@@ -21,14 +21,23 @@ struct ChatView: View {
         }
     }
 
-    private var target: (id: String, name: String, port: UInt16)? {
-        // Prefer the model this conversation was last using, if it is still up.
+    private var routerAvailable: Bool { model.router.isReachable }
+
+    /// Where this turn goes. `"auto"` is the router's own model name, which is
+    /// how it is told to decide rather than to proxy a named model.
+    private var target: (id: String, name: String, port: UInt16, viaRouter: Bool)? {
+        if model.useRouter, routerAvailable {
+            return ("auto", "Router", model.routerPort, true)
+        }
         if let wanted = store.selected?.lastModelID,
            let match = available.first(where: { $0.id == wanted }) {
-            return match
+            return (match.id, match.name, match.port, false)
         }
-        return available.first
+        guard let first = available.first else { return nil }
+        return (first.id, first.name, first.port, false)
     }
+
+    private var canSend: Bool { target != nil }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -44,7 +53,7 @@ struct ChatView: View {
         VStack(spacing: 0) {
             modelBar
             Divider()
-            if available.isEmpty {
+            if !canSend {
                 noModel
             } else {
                 transcript
@@ -57,8 +66,35 @@ struct ChatView: View {
     // MARK: - Model bar
 
     private var modelBar: some View {
-        HStack(spacing: 8) {
-            if available.isEmpty {
+        HStack(spacing: 9) {
+            // Routing is a mode, not a model, so it gets its own switch rather
+            // than hiding as an entry in the model list.
+            Toggle(isOn: Binding(
+                get: { model.useRouter && routerAvailable },
+                set: { model.useRouter = $0 }
+            )) {
+                Text("Router").font(.system(size: 11))
+            }
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+            .disabled(!routerAvailable)
+            .help(routerAvailable
+                  ? "Let the router choose a model for each turn"
+                  : "No router found. Start one with `dyno route`.")
+
+            if model.useRouter, routerAvailable {
+                Picker("", selection: Binding(
+                    get: { model.routerPort }, set: { model.routerPort = $0 }
+                )) {
+                    ForEach(model.knownRouterPorts, id: \.self) { port in
+                        Text(":\(String(port))").tag(port)
+                    }
+                }
+                .labelsHidden().frame(width: 92).controlSize(.small)
+                .help("Which router to send through")
+                Text("\(model.router.backends.count) model(s) behind it")
+                    .font(.system(size: 10)).foregroundStyle(.tertiary)
+            } else if available.isEmpty {
                 Text("No model running").font(.system(size: 11)).foregroundStyle(.secondary)
             } else {
                 Picker("", selection: Binding(
@@ -74,7 +110,7 @@ struct ChatView: View {
                     }
                 }
                 .labelsHidden()
-                .frame(maxWidth: 280)
+                .frame(maxWidth: 260)
                 .controlSize(.small)
                 .help("Replies from here on use this model")
             }
@@ -141,8 +177,11 @@ struct ChatView: View {
             Text("No model is running").font(.system(size: 13, weight: .medium))
             Text("Start one on the Models tab, then come back to talk to it.")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
-            Button("Go to Models") { model.requestedTab = .run }
-                .controlSize(.small).padding(.top, 2)
+            Button("Open Dyno") {
+                model.requestedTab = .run
+                AppDelegate.shared?.showMainWindow()
+            }
+            .controlSize(.small).padding(.top, 2)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -219,6 +258,7 @@ struct ChatView: View {
             modelID: target.id,
             modelName: target.name,
             port: target.port,
+            viaRouter: target.viaRouter,
             options: model.generationOptions
         ) { updated in
             store.update(updated)

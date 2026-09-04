@@ -11,13 +11,12 @@ struct MainWindow: View {
 
     @State private var tab: Tab
 
-    init(model: MonitorModel, initialTab: Tab = .chat) {
+    init(model: MonitorModel, initialTab: Tab = .run) {
         self.model = model
         _tab = State(initialValue: initialTab)
     }
 
     enum Tab: String, CaseIterable, Identifiable {
-        case chat = "Chat"
         case run = "Models"
         case router = "Router"
         case observe = "Performance"
@@ -35,7 +34,7 @@ struct MainWindow: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(width: 420)
+                .frame(width: 340)
                 Spacer()
                 if case let .running(name, port) = model.serverState {
                     HStack(spacing: 5) {
@@ -44,15 +43,39 @@ struct MainWindow: View {
                             .font(.system(size: 10)).foregroundStyle(.secondary)
                             .lineLimit(1).truncationMode(.middle)
                     }
+                    .padding(.trailing, 6)
                 }
+
+                // Chat opens beside this window rather than replacing a tab,
+                // so a conversation and the router's decisions can be watched
+                // together. Coloured explicitly: .borderedProminent goes grey
+                // whenever the window is not key.
+                Button {
+                    AppDelegate.shared?.toggleChatWindow()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "bubble.left.and.text.bubble.right")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text("Chat").font(.system(size: 12.5, weight: .semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14).padding(.vertical, 7)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.accentColor)
+                            .shadow(color: Color.accentColor.opacity(0.35), radius: 5, y: 1)
+                    )
+                    .contentShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut("j", modifiers: .command)
+                .help("Open the chat window (⌘J)")
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             Divider()
 
             switch tab {
-            case .chat:
-                ChatView(model: model)
             case .router:
                 RouterView(model: model)
             case .observe:

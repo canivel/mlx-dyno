@@ -64,6 +64,7 @@ final class ChatSession {
         modelID: String,
         modelName: String,
         port: UInt16,
+        viaRouter: Bool = false,
         options: GenerationOptions,
         onChange: @escaping (Conversation) -> Void
     ) {
@@ -74,7 +75,9 @@ final class ChatSession {
         var working = conversation
         working.messages.append(ChatMessage(role: .user, text: trimmed))
         working.messages.append(ChatMessage(
-            role: .assistant, text: "", isStreaming: true, modelName: modelName
+            role: .assistant, text: "", isStreaming: true,
+            // Through a router the model is not known until it answers.
+            modelName: viaRouter ? "routing…" : modelName
         ))
         working.lastModelID = modelID
         onChange(working)
@@ -88,7 +91,7 @@ final class ChatSession {
         task = Task { [weak self] in
             await self?.stream(
                 history: Array(history), conversation: working, modelID: modelID,
-                port: port, options: options, onChange: onChange
+                port: port, viaRouter: viaRouter, options: options, onChange: onChange
             )
         }
     }
@@ -98,6 +101,7 @@ final class ChatSession {
         conversation: Conversation,
         modelID: String,
         port: UInt16,
+        viaRouter: Bool,
         options: GenerationOptions,
         onChange: @escaping (Conversation) -> Void
     ) async {
@@ -137,6 +141,11 @@ final class ChatSession {
                 else { continue }
 
                 guard let index = lastIndex() else { break }
+                // The router only reveals which model it picked in the reply.
+                if viaRouter, let served = json["model"] as? String, !served.isEmpty {
+                    working.messages[index].modelName =
+                        served.split(separator: "/").last.map(String.init) ?? served
+                }
                 // mlx_lm reports thinking in its own field, so it never has to
                 // be cut out of the answer afterwards.
                 if let reasoning = delta["reasoning"] as? String, !reasoning.isEmpty {
@@ -160,7 +169,14 @@ final class ChatSession {
             working.messages[index].isStreaming = false
             working.messages[index].timeToFirstToken =
                 firstTokenAt.map { $0.timeIntervalSince(started) }
-            working.messages[index].tokensPerSecond = await measuredRate(port: port)
+            // A router's own port has no generation metrics; the model that
+            // answered has them, and the router does not say which port that
+            // was, so the rate is left to the trace rather than guessed at.
+            working.messages[index].tokensPerSecond =
+                viaRouter ? nil : await measuredRate(port: port)
+            if viaRouter, working.messages[index].modelName == "routing…" {
+                working.messages[index].modelName = nil
+            }
             if working.messages[index].text.isEmpty,
                !working.messages[index].hasReasoning,
                self.error == nil {

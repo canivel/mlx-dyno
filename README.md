@@ -71,14 +71,18 @@ the app**; right-click it for a summary without leaving what you are doing.
 
 ## Using it
 
-Four tabs:
+Four tabs — **Models**, **Router**, **Performance**, **Discover** — and a
+**Chat** button at the top right that opens chat in its own window, so a
+conversation and the router's decisions can be watched at the same time (⌘J).
 
 **Chat** — conversations on the left, the thread in the middle. Every reply
 carries the tokens/sec and time to first token that produced it, read from the
 server's counters rather than timed from outside. Reasoning models show their
 thinking in a collapsible block, because mlx_lm reports it in its own field
-rather than inline. The model picker at the top means a conversation can be
-continued on a different model, and conversations are saved to disk.
+rather than inline. The picker at the top selects the model, or a **Router** switch hands the
+choice to the router instead — the reply then reports which model it actually
+went to. Conversations are saved to disk and can be continued on a different
+model than they started on.
 
 **Models** — your library, with **Start**. Launch options are one disclosure
 away: max tokens, prompt-cache size, decode and prompt concurrency, sampling

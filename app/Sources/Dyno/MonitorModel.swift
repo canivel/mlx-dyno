@@ -29,6 +29,19 @@ final class MonitorModel {
 
     // -- router ---------------------------------------------------------------
     private(set) var router = RouterClient.Snapshot()
+    var useRouter = false {
+        didSet { UserDefaults.standard.set(useRouter, forKey: Defaults.useRouter) }
+    }
+    var routerPort: UInt16 = 8970 {
+        didSet {
+            UserDefaults.standard.set(Int(routerPort), forKey: Defaults.routerPort)
+            routerClient.port = routerPort
+        }
+    }
+    /// Ports worth offering: the default, plus whatever was configured.
+    var knownRouterPorts: [UInt16] {
+        Array(Set([8970, routerPort])).sorted()
+    }
     @ObservationIgnored private let routerClient = RouterClient()
     @ObservationIgnored private var lastRouterPoll: Date = .distantPast
 
@@ -112,6 +125,9 @@ final class MonitorModel {
 
         modelFolders = defaults.stringArray(forKey: Defaults.modelFolders) ?? []
         showThinking = defaults.object(forKey: Defaults.showThinking) as? Bool ?? true
+        useRouter = defaults.bool(forKey: Defaults.useRouter)
+        let storedPort = defaults.integer(forKey: Defaults.routerPort)
+        routerPort = storedPort > 0 ? UInt16(storedPort) : 8970
         if let data = defaults.data(forKey: Defaults.generationOptions),
            let decoded = try? JSONDecoder().decode(GenerationOptions.self, from: data) {
             generationOptions = decoded

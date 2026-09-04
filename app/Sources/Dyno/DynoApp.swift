@@ -33,9 +33,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var statusItem: StatusItemController?
     private lazy var windowController = MainWindowController(model: MonitorModel.shared)
+    private lazy var chatController = ChatWindowController(model: MonitorModel.shared)
 
     func showMainWindow() {
         windowController.show()
+    }
+
+    func toggleChatWindow() {
+        chatController.toggle()
     }
 
     nonisolated func applicationDidFinishLaunching(_ notification: Notification) {
