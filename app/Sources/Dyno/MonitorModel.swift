@@ -22,6 +22,18 @@ final class MonitorModel {
     private(set) var runtime: Runtime.Kind?
     var selectedModel: LocalModel?
 
+    // -- catalog -------------------------------------------------------------
+    private(set) var catalog: [CatalogModel] = []
+    private(set) var catalogError: String?
+    private(set) var isSearching = false
+    private(set) var downloads: [String: DownloadManager.Progress] = [:]
+    var searchText: String = ""
+
+    /// Repository ids already on disk, so the catalog can say so.
+    var downloadedRepositories: Set<String> {
+        Set(localModels.map(\.name))
+    }
+
     var modelFolders: [String] {
         didSet {
             UserDefaults.standard.set(modelFolders, forKey: Defaults.modelFolders)
@@ -53,6 +65,8 @@ final class MonitorModel {
     /// counter reads.
     @ObservationIgnored private let modelRefreshInterval: TimeInterval = 3.0
     @ObservationIgnored private let server = ServerController()
+    @ObservationIgnored private let downloader = DownloadManager()
+    @ObservationIgnored private var searchTask: Task<Void, Never>?
 
     init() {
         Defaults.register()
@@ -77,9 +91,86 @@ final class MonitorModel {
         server.onStateChange = { [weak self] state in
             Task { @MainActor in self?.serverState = state }
         }
+        downloader.onChange = { [weak self] progress in
+            Task { @MainActor in
+                self?.downloads = progress
+                // A finished download is a new model in the library.
+                if progress.values.contains(where: { $0.isFinished && $0.error == nil }) {
+                    self?.rescanModels()
+                }
+            }
+        }
         rescanModels()
+        loadCatalog()
         start()
     }
+
+    // MARK: - Catalog
+
+    func loadCatalog() {
+        runSearch(query: searchText)
+    }
+
+    /// Debounced: typing should not fire a request per keystroke.
+    func searchCatalog(_ query: String) {
+        searchText = query
+        searchTask?.cancel()
+        searchTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            guard !Task.isCancelled else { return }
+            runSearch(query: query)
+        }
+    }
+
+    private func runSearch(query: String) {
+        isSearching = true
+        catalogError = nil
+        Task { @MainActor in
+            do {
+                let results = query.trimmingCharacters(in: .whitespaces).isEmpty
+                    ? try await ModelCatalog.featured()
+                    : try await ModelCatalog.search(query)
+                self.catalog = results
+                self.isSearching = false
+                await self.fillSizes(for: results)
+            } catch {
+                self.catalog = []
+                self.catalogError = error.localizedDescription
+                self.isSearching = false
+            }
+        }
+    }
+
+    /// Sizes need a request each, so they arrive after the list rather than
+    /// holding it up. Bounded concurrency keeps this polite to the hub.
+    private func fillSizes(for models: [CatalogModel]) async {
+        let ids = models.prefix(30).map(\.id)
+        var sizes: [String: Int64] = [:]
+        await withTaskGroup(of: (String, Int64?).self) { group in
+            var running = 0
+            var iterator = ids.makeIterator()
+            func addNext() {
+                guard let id = iterator.next() else { return }
+                running += 1
+                group.addTask { (id, await ModelCatalog.size(of: id)) }
+            }
+            for _ in 0..<min(6, ids.count) { addNext() }
+            while let (id, size) = await group.next() {
+                running -= 1
+                if let size { sizes[id] = size }
+                addNext()
+            }
+        }
+        catalog = catalog.map { model in
+            var model = model
+            if let size = sizes[model.id] { model.sizeBytes = size }
+            return model
+        }
+    }
+
+    func download(_ model: CatalogModel) { downloader.download(model.id) }
+    func cancelDownload(_ model: CatalogModel) { downloader.cancel(model.id) }
+    func dismissDownload(_ repository: String) { downloader.clear(repository) }
 
     // MARK: - Serving models
 

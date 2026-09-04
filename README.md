@@ -101,7 +101,26 @@ MLX Dyno 0.1.0  ·  serving with live metrics
   Stats        http://127.0.0.1:8971/stats     (JSON)
 ```
 
-Or just use the app: pick a model in the window and press **Start**. Models are
+### Getting a model
+
+The app's **Discover** tab lists MLX models from the Hugging Face hub, newest
+and most-downloaded first, with search. Each row shows its size and precision,
+and flags anything too large for this Mac's GPU budget before you spend the
+bandwidth. One click downloads it; it appears in your library when it lands.
+
+From the command line:
+
+```sh
+dyno pull mlx-community/Qwen3-8B-4bit
+```
+
+Downloads go through `huggingface_hub` into the standard cache, so models you
+already have — from LM Studio, `mlx_lm`, or anything else using that cache —
+show up without being downloaded again.
+
+### Running it
+
+Pick a model in the window and press **Start**. Models are
 found in the Hugging Face cache, the LM Studio cache and `~/models`; add your own
 folder with the button in the sidebar. The app supervises the server and stops it
 when you quit, so a model is never left holding tens of gigabytes.
@@ -183,6 +202,7 @@ tools report as GPU usage, is unreliable on recent macOS — it reads near 100% 
 an idle machine. This ignores it in favour of P-state residency.
 
 ```sh
+dyno pull <repo-id>            # download a model from the hub
 dyno top                       # live dashboard
 dyno top --once                # one snapshot
 dyno top --json                # newline-delimited JSON

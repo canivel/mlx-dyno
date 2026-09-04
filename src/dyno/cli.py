@@ -23,11 +23,13 @@ commands:
   serve    run an MLX model and expose its generation metrics
            (Prometheus /metrics and JSON /stats)
   top      live dashboard of GPU, power, unified memory and bandwidth
+  pull     download a model from the Hugging Face hub
 
   dyno serve --help    every mlx_lm.server flag, plus the metrics endpoints
   dyno top --help      intervals, JSON and CSV output
 
 examples:
+  dyno pull mlx-community/Qwen3-8B-4bit
   dyno serve --model mlx-community/Qwen3-8B-4bit --port 8971
   dyno top
   dyno top --csv run.csv -i 0.5
@@ -61,6 +63,14 @@ def main(argv: list[str] | None = None) -> int:
             print(SERVE_MISSING, file=sys.stderr, end="")
             return 1
         return serve_main(rest)
+
+    if command == "pull":
+        try:
+            from .pull import main as pull_main
+        except ImportError:
+            print(SERVE_MISSING, file=sys.stderr, end="")
+            return 1
+        return pull_main(rest)
 
     if command == "top":
         from .monitor.cli import main as monitor_main

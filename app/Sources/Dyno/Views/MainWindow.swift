@@ -8,16 +8,51 @@ import SwiftUI
 /// metrics that explain the number.
 struct MainWindow: View {
     var model: MonitorModel
+    @State private var tab = Tab.run
+
+    enum Tab: String, CaseIterable, Identifiable {
+        case run = "Run"
+        case discover = "Discover"
+        var id: String { rawValue }
+    }
 
     var body: some View {
-        HStack(spacing: 0) {
-            ModelSidebar(model: model)
-                .frame(width: 240)
+        VStack(spacing: 0) {
+            HStack {
+                Picker("", selection: $tab) {
+                    ForEach(Tab.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 190)
+                Spacer()
+                if case let .running(name, port) = model.serverState {
+                    HStack(spacing: 5) {
+                        Circle().fill(Color.green).frame(width: 6, height: 6)
+                        Text("\(name) · :\(String(port))")
+                            .font(.system(size: 10)).foregroundStyle(.secondary)
+                            .lineLimit(1).truncationMode(.middle)
+                    }
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
             Divider()
-            RunPanel(model: model)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            switch tab {
+            case .run:
+                HStack(spacing: 0) {
+                    ModelSidebar(model: model)
+                        .frame(width: 240)
+                    Divider()
+                    RunPanel(model: model)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            case .discover:
+                DiscoverView(model: model)
+            }
         }
-        .frame(minWidth: 780, minHeight: 520)
+        .frame(minWidth: 800, minHeight: 540)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 }
@@ -55,6 +90,8 @@ private struct ModelSidebar: View {
                     Text("Dyno looks in the Hugging Face cache, the LM Studio cache and ~/models.")
                         .font(.system(size: 11)).foregroundStyle(.tertiary)
                         .fixedSize(horizontal: false, vertical: true)
+                    Text("Use Discover to download one.")
+                        .font(.system(size: 11)).foregroundStyle(.tertiary)
                 }
                 .padding(.horizontal, 14)
             } else {

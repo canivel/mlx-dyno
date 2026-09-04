@@ -134,6 +134,23 @@
 
 <section>
   <div class="wrap">
+    <h2>Find a model</h2>
+    <p>The app's <strong>Discover</strong> tab lists MLX models from the Hugging Face hub
+      with search, showing each one's size and precision and flagging anything too large for
+      your Mac's GPU budget <em>before</em> you spend the bandwidth. One click downloads it
+      and it appears in your library.</p>
+<pre class="term"><span class="c"># or from the command line</span>
+<span class="prompt">$</span> dyno pull mlx-community/Qwen3-8B-4bit
+Downloading mlx-community/Qwen3-8B-4bit (4.3 GB)…
+   68.2%    2.93 / 4.31 GB</pre>
+    <p class="muted" style="font-size:14px">Downloads use the standard Hugging Face cache,
+      so models you already have — from LM Studio, <code>mlx_lm</code>, or anything else
+      using that cache — show up without downloading again.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
     <h2>Serve a model</h2>
 <pre class="term"><span class="prompt">$</span> dyno serve --model mlx-community/Qwen3-8B-4bit --port 8971
 
@@ -247,6 +264,11 @@ Processes:
         <h4>Bandwidth, not just utilisation</h4>
         <p>DRAM read and write throughput, because that is what predicts tokens per second
         on a unified-memory machine.</p>
+      </div>
+      <div class="card">
+        <h4>One-click models</h4>
+        <p>Browse and download MLX models from the hub inside the app, with size and
+        precision shown up front.</p>
       </div>
       <div class="card">
         <h4>Other runtimes too</h4>
