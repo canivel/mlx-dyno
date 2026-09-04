@@ -79,25 +79,57 @@ struct ChatView: View {
                 .help("Replies from here on use this model")
             }
             Spacer()
+
             Button {
                 withAnimation(.easeInOut(duration: 0.12)) { showingOptions.toggle() }
             } label: {
-                Label("Options", systemImage: "slider.horizontal.3")
-                    .font(.system(size: 11))
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 13))
+                    .frame(width: 30, height: 28)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundStyle(showingOptions ? Color.accentColor : .secondary)
+            .help("Generation options")
+
+            // The primary action on this screen: the only coloured control,
+            // set apart from the rest. Coloured explicitly rather than with
+            // .borderedProminent, which greys out whenever the window is not
+            // key -- exactly when you are coming back to start a new chat.
+            Button {
+                session.stop()
+                store.newConversation()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "square.and.pencil").font(.system(size: 12, weight: .semibold))
+                    Text("New chat").font(.system(size: 12.5, weight: .semibold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.accentColor)
+                        .shadow(color: Color.accentColor.opacity(0.35), radius: 5, y: 1)
+                )
+                .contentShape(RoundedRectangle(cornerRadius: 8))
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut("n", modifiers: .command)
+            .help("Start a new conversation (⌘N)")
+            .padding(.leading, 10)
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 9)
-        .overlay(alignment: .bottom) {
+        .padding(.vertical, 10)
+        .overlay(alignment: .bottomTrailing) {
             if showingOptions {
                 GenerationOptionsBar(options: Binding(
                     get: { model.generationOptions },
                     set: { model.generationOptions = $0 }
                 ))
-                .offset(y: 96)
+                .offset(x: -14, y: 104)
                 .zIndex(1)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
     }
@@ -203,21 +235,10 @@ private struct ConversationSidebar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("CHATS")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.tertiary).tracking(0.7)
-                Spacer()
-                Button {
-                    session.stop()
-                    store.newConversation()
-                } label: {
-                    Image(systemName: "square.and.pencil").font(.system(size: 11))
-                }
-                .buttonStyle(.plain).foregroundStyle(.secondary)
-                .help("New chat")
-            }
-            .padding(.horizontal, 13).padding(.top, 13).padding(.bottom, 8)
+            Text("CHATS")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.tertiary).tracking(0.7)
+                .padding(.horizontal, 13).padding(.top, 15).padding(.bottom, 8)
 
             if store.conversations.isEmpty {
                 Text("No conversations yet.")
